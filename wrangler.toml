@@ -1,0 +1,13 @@
+name = "vcx-new"
+main = "worker_bundle.js"
+compatibility_date = "2025-04-30"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vcx-db"
+database_id = "d8d9395b-2580-41ba-8ce9-300b5754b42d"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "vcx-media"

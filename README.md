@@ -1,0 +1,33 @@
+# VirtualCardX Worker (vcx-new)
+
+virtualcardx.com 的 Cloudflare Workers 源码（Hono + D1 `vcx-db` + R2 `vcx-media`）。
+
+## 结构
+
+| 文件 | 说明 |
+|---|---|
+| `index.js` | Worker 源码（esbuild 打包入口） |
+| `worker_bundle.js` | esbuild 产物（wrangler `main`） |
+| `wrangler.toml` | Cloudflare 配置（D1/R2 绑定） |
+| `deploy_vcx.sh` | Cloudflare API 部署脚本 |
+| `test_*.mjs` | SEO / Schema / 301 映射 / 路由回归测试 |
+| `syntax_check.cjs` | 语法检查 |
+| `diag*.js` | 临时诊断脚本 |
+
+## 开发
+
+```bash
+npm install            # hono
+npx esbuild index.js --bundle --format=esm --outfile=worker_bundle.js --external:node:*
+node --check worker_bundle.js
+npx wrangler deploy    # 需 CLOUDFLARE_API_TOKEN
+```
+
+## 管理 API
+
+`/api/*` 使用 Bearer Token（secret `API_TOKEN`），密钥不在仓库中。
+
+## 站点
+
+- 生产：https://virtualcardx.com （中文 `/`，英文 `/en/`）
+- 预览：https://vcx-new.xiaoyanggekuajing.workers.dev
