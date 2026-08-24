@@ -27,5 +27,5 @@ const CATEGORY_DESC = {
     cryptocurrency: 'Cryptocurrency guides: topping up virtual cards with stablecoins, on-chain fee comparisons, exchange withdrawals, and crypto card choices.',
   },
 }
-function pageDescFor(lang, slug) { return (PAGE_DESC[lang] || {})[slug] || null }
-function categoryDescFor(lang, slug) { return (CATEGORY_DESC[lang] || {})[slug] || null }
+export function pageDescFor(lang, slug) { return (PAGE_DESC[lang] || {})[slug] || null }
+export function categoryDescFor(lang, slug) { return (CATEGORY_DESC[lang] || {})[slug] || null }
