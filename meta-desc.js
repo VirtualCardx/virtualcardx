@@ -20,11 +20,21 @@ const CATEGORY_DESC = {
     'virtual-credit-card': '虚拟信用卡平台实测汇总：开卡流程、充值方式、月费与交易费率、KYC 要求和封卡风险，持续更新真实使用体验。',
     'technology-share': '技术教程合集：Linux 服务器运维、SSL 证书、WordPress 与 API 自动化配置的实操步骤与踩坑记录。',
     cryptocurrency: '加密货币栏目：稳定币充值虚拟卡、链上手续费对比、交易所提现与 U 卡选择的实操指南。',
+    'cross-border-collections': '跨境支付收款平台实测：开户流程、费率、提现时效与风控案例，覆盖主流收款工具的真实使用体验。',
+    'social-media': '社媒运营实战：Facebook、LinkedIn、WhatsApp 等平台的内容策略与客户开发方法，附外贸获客实操案例。',
+    'artificial-intelligence': 'AI 工具评测与教程：编程助手、API 接入、订阅支付方案对比，帮你选对工具少踩坑。',
+    seo: 'SEO 与流量实战：搜索引擎优化策略、AI Overview 应对、GSC 数据分析与外链建设方法。',
+    'resource-share': '免费资源分享：开发者工具、SaaS 免费额度与低成本 VPS 优惠汇总，长期更新。',
   },
   en: {
     'virtual-credit-card': 'Hands-on virtual credit card platform reviews: onboarding, top-up methods, monthly and transaction fees, KYC requirements, and ban risks.',
     'technology-share': 'Tech tutorials: Linux server operations, SSL certificates, WordPress, and API automation with step-by-step guides and pitfalls.',
     cryptocurrency: 'Cryptocurrency guides: topping up virtual cards with stablecoins, on-chain fee comparisons, exchange withdrawals, and crypto card choices.',
+    'cross-border-collections': 'Cross-border payment platform reviews: account setup, fees, withdrawal speed, and risk cases from real usage.',
+    'social-media': 'Social media playbooks: content strategy and client development on Facebook, LinkedIn, and WhatsApp for exporters.',
+    'artificial-intelligence': 'AI tool reviews and tutorials: coding assistants, API access, and subscription payment options compared.',
+    seo: 'SEO and traffic guides: search optimization, AI Overview impact, GSC analysis, and link building in practice.',
+    'resource-share': 'Free resources: developer tools, SaaS free tiers, and budget VPS deals, updated regularly.',
   },
 }
 export function pageDescFor(lang, slug) { return (PAGE_DESC[lang] || {})[slug] || null }
