@@ -961,7 +961,7 @@ app.get('/sitemap.xml', async (c) => {
     const lastmod = (p.modified||'').slice(0,10)
     return `<url><loc>${SITE}${base}${p.path}/</loc>${lastmod?`<lastmod>${lastmod}</lastmod>`:''}</url>`
   }).join('')
-  const staticSlugs = ['about','contact','terms','privacy-policy','technology-share','virtual-credit-card','cryptocurrency','cross-border-collections','social-media','artificial-intelligence','resource-share']
+  const staticSlugs = ['about','contact','terms','privacy-policy','technology-share','virtual-credit-card','cryptocurrency','cross-border-collections','social-media','artificial-intelligence','seo','resource-share']
   const staticUrls = ['/', '/en/', ...staticSlugs.flatMap(slug => [`/${slug}/`, `/en/${slug}/`])]
     .map(path => `<url><loc>${SITE}${path}</loc></url>`).join('')
   return c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${staticUrls}${postUrls}</urlset>`,
@@ -1109,14 +1109,20 @@ app.put('/api/posts/:id', async (c) => {
   const id = parseInt(c.req.param('id'))
   let body
   try { body = await c.req.json() } catch { return apiJson({ error: 'Invalid JSON' }, 400) }
-  const { results } = await c.env.DB.prepare('SELECT id FROM posts WHERE id = ?').bind(id).all()
+  const { results } = await c.env.DB.prepare('SELECT id, path, lang FROM posts WHERE id = ?').bind(id).all()
   if (!results.length) return apiJson({ error: 'Post not found' }, 404)
+  // path 变更时查重 (与 POST 一致), 防止把文章改到已有 URL 上
+  if (body.path !== undefined && body.path !== results[0].path) {
+    const dup = await c.env.DB.prepare('SELECT id FROM posts WHERE path = ? AND lang = ? AND id != ?').bind(body.path, results[0].lang, id).all()
+    if (dup.results.length) return apiJson({ error: `Path already exists: ${body.path}`, existingId: dup.results[0].id }, 409)
+  }
   const fields = ['title','content','excerpt','slug','path','date','status','featured_media','category_ids','tag_ids','translation_id']
   const sets = []; const params = []
   for (const f of fields) {
     if (body[f] !== undefined) {
       sets.push(`${f} = ?`)
-      params.push(typeof body[f] === 'object' ? JSON.stringify(body[f]) : body[f])
+      // null 表示清空字段 (SQL NULL), 不能走 JSON.stringify 变成字符串 "null"
+      params.push(body[f] === null ? null : (typeof body[f] === 'object' ? JSON.stringify(body[f]) : body[f]))
     }
   }
   if (body.category_ids && Array.isArray(body.category_ids)) {
@@ -1521,12 +1527,12 @@ app.get('*', async (c) => {
             </div>
             <div class="content">${content}</div>
             <div class="article-footer">
-              <a class="lang-toggle" href="/${path}/">🌐 阅读中文版</a>
+              <a class="lang-toggle" href="/${postPath}/">🌐 阅读中文版</a>
             </div>
           </article>`
           return c.html(layout('en', `${zp.title} - VirtualCardx`,
             (zp.excerpt||'').replace(/<[^>]+>/g,'').slice(0,150), body,
-            { recentPosts: recent, path: `${path}/`, extraHead: `<link rel="alternate" hreflang="zh" href="${SITE}/${path}/"><link rel="alternate" hreflang="en" href="${SITE}/en/${path}/"><link rel="alternate" hreflang="x-default" href="${SITE}/${path}/">` }))
+            { recentPosts: recent, path: `${postPath}/`, extraHead: `<link rel="alternate" hreflang="zh" href="${SITE}/${postPath}/"><link rel="alternate" hreflang="en" href="${SITE}/en/${postPath}/"><link rel="alternate" hreflang="x-default" href="${SITE}/${postPath}/">` }))
         }
       }
       // 未命中: 不在此 404, 穿透到下方 WP 遗留兜底 301 / 最终 404
