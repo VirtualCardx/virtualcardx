@@ -3,3 +3,4 @@ node_modules/
 *.bak-*
 *.bin
 .DS_Store
+package-lock.json
