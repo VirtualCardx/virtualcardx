@@ -1,6 +1,7 @@
 // virtualcardx.com 新站 Worker v3 — 专业界面重设计
 // 共享布局: 导航/侧边栏/页脚 + 现代 CSS
 import { Hono } from 'hono'
+import { pageDescFor, categoryDescFor } from './meta-desc.js'
 
 const app = new Hono({ strict: false })
 
@@ -429,6 +430,7 @@ function layout(lang, title, desc, body, opts={}) {
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:url" content="${SITE}${canonical}">
 <meta property="og:locale" content="${lang==='en'?'en_US':'zh_CN'}">
+${(opts.extraHead||'').includes('og:image') ? '' : `<meta property="og:image" content="${SITE}/media/1556-cropped-logo.png"><meta property="og:image:alt" content="VirtualCardx">`}
 <meta name="twitter:card" content="summary">
 ${opts.jsonld ? `<script type="application/ld+json">${JSON.stringify(opts.jsonld)}</script>` : ''}
 ${opts.extraHead||''}
@@ -784,7 +786,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
     : `${name} - VirtualCardx`
   const pageDesc = page>1
     ? (lang==='en' ? `Browse ${name} articles on page ${page}.` : `${name}文章列表第 ${page} 页。`)
-    : `${name} category on VirtualCardx`
+    : (categoryDescFor(lang, childSlug || parentSlug) || `${name} category on VirtualCardx`)
   return layout(lang, pageTitle, pageDesc, body, { noSidebar:true, path: canonicalPath, jsonld: categoryJsonld })
 }
 
@@ -1470,7 +1472,7 @@ app.get('*', async (c) => {
         {'@type':'ListItem',position:2,name:pg.title,item:pageUrl}
       ]}
     ]}
-    return c.html(layout(lang, `${pg.title} - VirtualCardx`, pg.title, body, { noSidebar:true, path: `${pg.slug}/`, jsonld:pageJsonld }))
+    return c.html(layout(lang, `${pg.title} - VirtualCardx`, pageDescFor(lang, pg.slug) || pg.title, body, { noSidebar:true, path: `${pg.slug}/`, jsonld:pageJsonld }))
   }
 
   // 分类页: /slug/, /parent/child/, /slug/page/N/, /parent/child/page/N/
