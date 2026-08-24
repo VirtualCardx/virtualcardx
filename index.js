@@ -867,14 +867,18 @@ async function renderHomePage(c, lang, page) {
   const urlFor = (p) => p === 1 ? base : `${base}page/${p}/`
   const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
   const recent = await recentPosts(c, lang)
-  // 首页第 1 页: 加 SEO H1 区块 (改版迁移时丢失), 分页页不加
-  const heroSection = page === 1
-    ? `<section class="home-hero"><h1>${lang==='en'
+  // 首页和分页页统一使用无障碍 H1：保留页面语义，不挤压文章列表首屏。
+  const heroTitle = page > 1
+    ? (lang==='en' ? `Latest Articles — Page ${page}` : `最新文章第 ${page} 页`)
+    : (lang==='en'
         ? 'Virtual Credit Card Reviews &amp; Recommendations — 60+ Platforms Tested'
-        : '虚拟信用卡评测与推荐 — 60+ 平台实测'}</h1><p>${lang==='en'
+        : '虚拟信用卡评测与推荐 — 60+ 平台实测')
+  const heroDescription = page === 1
+    ? `<p>${lang==='en'
         ? 'Independent, hands-on reviews of virtual credit cards for cross-border payments: fees, KYC, funding methods, and real-world usage.'
-        : '跨境支付虚拟信用卡实测评测：费率、KYC、开卡与充值方式、风控与真实使用体验。'}</p></section>`
+        : '跨境支付虚拟信用卡实测评测：费率、KYC、开卡与充值方式、风控与真实使用体验。'}</p>`
     : ''
+  const heroSection = `<section class="home-hero"><h1>${heroTitle}</h1>${heroDescription}</section>`
   const siteUrl = SITE + base
   const homeJsonld = page === 1 ? {
     '@context': 'https://schema.org',
@@ -889,7 +893,7 @@ async function renderHomePage(c, lang, page) {
       { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'VirtualCardx', url: SITE+'/', logo: { '@type': 'ImageObject', url: `${SITE}/media/1556-cropped-logo.png`, width: 128, height: 45 } }
     ]
   } : undefined
-  const body = heroSection + (page>1 ? `<h1 class="page-title">${lang==='en'?`Latest Articles — Page ${page}`:`最新文章第 ${page} 页`}</h1>` : '') + cards.join('') + pagination
+  const body = heroSection + cards.join('') + pagination
   const pageTitle = page>1
     ? (lang==='en' ? `Latest Articles — Page ${page} - VirtualCardx` : `最新文章第 ${page} 页 - VirtualCardx`)
     : (lang==='en' ? 'VirtualCardx | Virtual Credit Card Reviews & Recommendations' : '虚拟信用卡平台推荐与评测 | VirtualCardx 60+平台实测')
