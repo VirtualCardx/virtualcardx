@@ -15,6 +15,10 @@
 -- 表
 -- ============================================================
 
+-- posts.category_ids / posts.tag_ids 为 JSON 数组文本 (如 '[1,2]')，
+--   元素分别为 categories.id / tags.id；Worker 代码统一 JSON.stringify 写入 / JSON.parse 读取，null 表示清空。
+-- posts.translation_id 指向另一语言配对文章的 id (中英互译，同 slug)。
+
 CREATE TABLE IF NOT EXISTS posts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   lang TEXT NOT NULL DEFAULT 'zh',
@@ -27,8 +31,8 @@ CREATE TABLE IF NOT EXISTS posts (
   modified TEXT,
   status TEXT DEFAULT 'publish',
   featured_media INTEGER,
-  category_ids TEXT DEFAULT '[]',   -- JSON 数组文本, 元素为 categories.id
-  tag_ids TEXT DEFAULT '[]',        -- JSON 数组文本, 元素为 tags.id
+  category_ids TEXT DEFAULT '[]',
+  tag_ids TEXT DEFAULT '[]',
   translation_id INTEGER,
   created_at TEXT DEFAULT (datetime('now'))
 );
