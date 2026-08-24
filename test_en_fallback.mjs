@@ -1,6 +1,6 @@
 // 回归测试: /en/<只有中文记录的文章>/ 走 zh fallback 渲染 200 HTML
 // (2026-08-24 修复: 该分支曾引用未定义的 path 变量, 返回 ERROR: path is not defined)
-import app from './worker_bundle.js'
+import app from './index.js'
 
 const zhPost = { id: 1, lang: 'zh', title: '中文测试文章', excerpt: '摘要', content: '<p>hello</p>', path: '2026/08/04/test', date: '2026-08-04', modified: '2026-08-04', featured_media: null, translation_id: null }
 

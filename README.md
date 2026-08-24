@@ -6,10 +6,9 @@ virtualcardx.com 的 Cloudflare Workers 源码（Hono + D1 `vcx-db` + R2 `vcx-me
 
 | 文件 | 说明 |
 |---|---|
-| `index.js` | Worker 源码（esbuild 打包入口） |
-| `worker_bundle.js` | esbuild 产物（wrangler `main`） |
+| `index.js` | Worker 源码（wrangler 直接打包入口，无需手动 esbuild） |
 | `db/schema.sql` | D1 表结构（posts/categories/tags/pages/media + 索引） |
-| `wrangler.toml` | Cloudflare 配置（D1/R2 绑定） |
+| `wrangler.toml` | Cloudflare 配置（D1/R2 绑定、account_id） |
 | `deploy_vcx.sh` | Cloudflare API 部署脚本 |
 | `test_*.mjs` | SEO / Schema / 301 映射 / 路由回归测试 |
 | `syntax_check.cjs` | 语法检查 |
@@ -19,9 +18,8 @@ virtualcardx.com 的 Cloudflare Workers 源码（Hono + D1 `vcx-db` + R2 `vcx-me
 
 ```bash
 npm install            # hono
-npx esbuild index.js --bundle --format=esm --outfile=worker_bundle.js --external:node:*
-node --check worker_bundle.js
-npx wrangler deploy    # 需 CLOUDFLARE_API_TOKEN
+npx wrangler dev       # 本地模式;加 --remote 连生产 D1/R2
+npx wrangler deploy    # 需 CLOUDFLARE_API_TOKEN;wrangler 自动打包 index.js
 ```
 
 ## D1 初始化

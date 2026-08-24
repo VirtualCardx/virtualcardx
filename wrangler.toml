@@ -1,6 +1,7 @@
 name = "vcx-new"
-main = "worker_bundle.js"
+main = "index.js"
 compatibility_date = "2025-04-30"
+account_id = "ce642be238771f93eee372d5035c488d"
 workers_dev = true
 
 [[d1_databases]]

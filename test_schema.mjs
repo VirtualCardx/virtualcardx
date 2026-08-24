@@ -1,4 +1,4 @@
-import worker from './worker_bundle.js';import fs from 'node:fs';
+import worker from './index.js';import fs from 'node:fs';
 const P=[...JSON.parse(fs.readFileSync('/tmp/vcx_posts_zh.json','utf8')),...JSON.parse(fs.readFileSync('/tmp/vcx_posts_en.json','utf8'))].map(x=>({...x,content:x.content||'<p>Test</p>',excerpt:x.excerpt||'Test excerpt'}));let wf=P.find(x=>x.lang==='zh'&&x.path==='2026/07/05/worldfirst');wf.featured_media=999;wf.content='<p>Test</p><img src="/media/worldfirst.jpg" alt="">';
 class S{constructor(s){this.s=s;this.a=[]}bind(...a){this.a=a;return this}async all(){let s=this.s,r=[];
 if(s.includes('FROM pages'))r=this.a[0]==='about'?[{slug:'about',title:'关于',content:'<p>About</p>',path:'about'}]:[];

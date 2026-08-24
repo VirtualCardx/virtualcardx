@@ -1,4 +1,4 @@
-import app from './worker_bundle.js'
+import app from './index.js'
 const env={DB:{prepare(){return this},bind(){return this},async all(){return {results:[]}}},R2:{async get(){return null}}}
 const cases={
 '/virtualcardx2026-2/':'/virtualcardx2026.txt',

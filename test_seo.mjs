@@ -1,4 +1,4 @@
-import worker from './worker_bundle.js';
+import worker from './index.js';
 import fs from 'node:fs';
 const posts=[...JSON.parse(fs.readFileSync('/tmp/vcx_posts_zh.json','utf8')),...JSON.parse(fs.readFileSync('/tmp/vcx_posts_en.json','utf8'))].filter(x=>x.status==='publish');
 for(const p of posts){p.featured_media=null;p.excerpt=p.excerpt||'';p.modified=p.modified||p.date;}
