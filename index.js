@@ -416,6 +416,7 @@ function layout(lang, title, desc, body, opts={}) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
+${opts.noindex ? '<meta name="robots" content="noindex,follow">' : ''}
 <link rel="icon" type="image/png" href="/media/1556-cropped-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -661,7 +662,10 @@ async function handleSearch(c, lang, q) {
   }
   const listHtml = items.join('') || `<p style="padding:20px;color:var(--text-light)">${lang==='en'?'No results found':'没有找到相关结果'}</p>`
   const body = `<h1 class="page-title">${lang==='en'?'Search':'搜索'}: ${esc(q)}</h1>${listHtml}`
-  return layout(lang, `${q} - VirtualCardx`, `Search results for ${q}`, body, { noSidebar:true, path: `?s=${encodeURIComponent(q)}` })
+  const searchDesc = lang==='en'
+    ? `Search results for “${q}” on VirtualCardx. Browse related virtual card reviews, payment guides, and practical tutorials.`
+    : `VirtualCardx 站内“${q}”搜索结果，查找相关虚拟卡评测、跨境支付指南与实用教程。`
+  return layout(lang, `${q} - VirtualCardx`, searchDesc, body, { noSidebar:true, path: `?s=${encodeURIComponent(q)}`, noindex:true })
 }
 
 // 分类渲染 (带分页)
@@ -785,7 +789,9 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
     ? (lang==='en' ? `${name} — Page ${page} - VirtualCardx` : `${name}第 ${page} 页 - VirtualCardx`)
     : `${name} - VirtualCardx`
   const pageDesc = page>1
-    ? (lang==='en' ? `Browse ${name} articles on page ${page}.` : `${name}文章列表第 ${page} 页。`)
+    ? (lang==='en'
+      ? `Browse page ${page} of ${name} on VirtualCardx, with practical reviews, fee comparisons, setup guides, and risk notes.`
+      : `浏览 VirtualCardx ${name}第 ${page} 页，查看平台实测、费率对比、开通教程、使用限制与风险提示。`)
     : (categoryDescFor(lang, childSlug || parentSlug) || `${name} category on VirtualCardx`)
   return layout(lang, pageTitle, pageDesc, body, { noSidebar:true, path: canonicalPath, jsonld: categoryJsonld })
 }
