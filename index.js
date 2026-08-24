@@ -772,7 +772,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
     const nameSlug = childSlug || parentSlug
     name = CATEGORY_NAMES_EN[nameSlug] || name
   }
-  const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(name)}</span></nav><h1 class="page-title">${esc(name)}${page>1 ? (lang==='en' ? ` — Page ${page}` : `第 ${page} 页`) : ''}</h1>${listHtml}${pagination}`
+  const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(name)}</span></nav><h1 class="page-title">${esc(name)}</h1>${listHtml}${pagination}`
   const canonicalPath = page>1 ? `${catPath}/page/${page}/` : `${catPath}/`
   const canonicalUrl = `${SITE}${base}${canonicalPath}`
   const categoryJsonld = {
