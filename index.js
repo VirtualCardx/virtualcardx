@@ -1532,7 +1532,7 @@ app.get('*', async (c) => {
           </article>`
           return c.html(layout('en', `${zp.title} - VirtualCardx`,
             (zp.excerpt||'').replace(/<[^>]+>/g,'').slice(0,150), body,
-            { recentPosts: recent, path: `${postPath}/`, extraHead: `<link rel="alternate" hreflang="zh" href="${SITE}/${postPath}/"><link rel="alternate" hreflang="en" href="${SITE}/en/${postPath}/"><link rel="alternate" hreflang="x-default" href="${SITE}/${postPath}/">` }))
+            { recentPosts: recent, path: `${postPath}/` }))
         }
       }
       // 未命中: 不在此 404, 穿透到下方 WP 遗留兜底 301 / 最终 404
@@ -1600,7 +1600,7 @@ app.get('*', async (c) => {
             {'@type':'ListItem',position:2,name:p.title,item:articleUrl}
           ]}
         ]},
-        extraHead: `${ogImageTag}<link rel="alternate" hreflang="${altLang}" href="${SITE}${altHref}"><link rel="alternate" hreflang="${lang}" href="${SITE}${curHref}"><link rel="alternate" hreflang="x-default" href="${SITE}${lang==='zh' ? curHref : altHref}">` }))
+        extraHead: `${ogImageTag}` }))
     }
   }
 
