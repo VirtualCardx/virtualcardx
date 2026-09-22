@@ -398,8 +398,8 @@ function langSwitchHref(lang, curPath) {
   }
   return query ? out + '?' + query : out
 }
-// 第一方、无 Cookie 的站点统计: 页面浏览 + 外链点击(价值出口)。
-// 聚合写入 D1 (day/kind/path/target -> 计数)，不记录 IP、UA 或个人标识。
+// 第一方、无 Cookie 的价值出口统计：仅记录自家目录站的外链点击。
+// 页面浏览由 Cloudflare Web Analytics 负责；D1 仅聚合 out 事件，不记录 IP、UA 或个人标识。
 const trackScript = `<script>
 (function(){
   function send(k, t){
@@ -412,7 +412,6 @@ const trackScript = `<script>
       }
     }catch(e){}
   }
-  send('pv', '');
   document.addEventListener('click', function(e){
     var a = e.target && e.target.closest ? e.target.closest('a[data-out]') : null;
     if (a) send('out', a.getAttribute('data-out'));
