@@ -15,6 +15,22 @@ app.use('*', async (c, next) => {
   }
   await next()
 })
+// Public HTML has one canonical form: trailing slash. Keep APIs, static assets and
+// extension paths untouched so only route documents are normalized.
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url)
+  const path = url.pathname
+  const isDocumentPath = !path.endsWith('/') &&
+    !path.startsWith('/api/') && !path.startsWith('/media/') &&
+    !path.startsWith('/media-webp/') &&
+    !/\/[^/]+\.[a-z0-9]{1,10}$/i.test(path)
+  if ((c.req.method === 'GET' || c.req.method === 'HEAD') && isDocumentPath) {
+    url.pathname = `${path}/`
+    return c.redirect(url.toString(), 301)
+  }
+  await next()
+})
+
 // 公开 SSR HTML 的 Worker Edge Cache。缓存键保持原始 URL，便于 Zone API 精准 purge。
 app.use('*', async (c, next) => {
   const url = new URL(c.req.url)
@@ -391,6 +407,12 @@ function layout(lang, title, desc, body, opts={}) {
   const searchPlaceholder = lang==='en' ? 'Search...' : '搜索文章...'
   const homeLabel = lang==='en' ? 'Home' : '首页'
   const canonical = opts.canonical || (base + (opts.path||''))
+  const seoHead = opts.omitCanonical ? '' : `
+<link rel="canonical" href="${SITE}${canonical}">
+<link rel="alternate" hreflang="${lang==='en'?'zh':'en'}" href="${SITE}${altHref}">
+<link rel="alternate" hreflang="${lang}" href="${SITE}${canonical}">
+<link rel="alternate" hreflang="x-default" href="${SITE}${lang==='zh' ? canonical : altHref}">
+<meta property="og:url" content="${SITE}${canonical}">`
   const sidebar = opts.noSidebar ? '' : `
   <aside class="sidebar">
     <div class="widget author-card">
@@ -421,15 +443,11 @@ ${opts.noindex ? '<meta name="robots" content="noindex,follow">' : ''}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="canonical" href="${SITE}${canonical}">
-<link rel="alternate" hreflang="${lang==='en'?'zh':'en'}" href="${SITE}${altHref}">
-<link rel="alternate" hreflang="${lang}" href="${SITE}${canonical}">
-<link rel="alternate" hreflang="x-default" href="${SITE}${lang==='zh' ? canonical : altHref}">
+${seoHead}
 <meta property="og:type" content="${opts.ogType||'website'}">
 <meta property="og:site_name" content="VirtualCardx">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
-<meta property="og:url" content="${SITE}${canonical}">
 <meta property="og:locale" content="${lang==='en'?'en_US':'zh_CN'}">
 ${(opts.extraHead||'').includes('og:image') ? '' : `<meta property="og:image" content="${SITE}/media/1556-cropped-logo.png"><meta property="og:image:alt" content="VirtualCardx">`}
 <meta name="twitter:card" content="summary">
@@ -1581,6 +1599,10 @@ app.get('*', async (c) => {
     const recent = await recentPosts(c, lang)
     const articleUrl = `${SITE}${baseOf(lang)}${path}/`
     const articleDesc = (p.excerpt||'').replace(/<[^>]+>/g,'').slice(0,150)
+    const publishedDate = (p.date || '').slice(0,10)
+    const storedModifiedDate = (p.modified || '').slice(0,10)
+    // Imported records can carry a stale modified timestamp. Schema dates must never run backwards.
+    const modifiedDate = storedModifiedDate >= publishedDate ? storedModifiedDate : publishedDate
     const body = `<article class="article">
       <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(p.title)}</span></nav>
       <div class="article-header">
@@ -1602,7 +1624,7 @@ app.get('*', async (c) => {
         jsonld: { '@context':'https://schema.org', '@graph': [
           { '@type':'Article', '@id':`${articleUrl}#article`, headline:p.title.slice(0,110), description:articleDesc, url:articleUrl,
             image:articleImage ? [articleImage] : undefined,
-            datePublished:(p.date||'').slice(0,10), dateModified:(p.modified||p.date||'').slice(0,10), inLanguage:lang==='en'?'en':'zh-CN',
+            datePublished:publishedDate, dateModified:modifiedDate, inLanguage:lang==='en'?'en':'zh-CN',
             author:{'@type':'Person',name:lang==='en'?'Moyi Foreign Trade':'木易外贸',url:`${SITE}${base}about/`},
             publisher:{'@type':'Organization','@id':`${SITE}/#organization`,name:'VirtualCardx',logo:{'@type':'ImageObject',url:`${SITE}/media/1556-cropped-logo.png`,width:128,height:45}},
             mainEntityOfPage:{'@id':`${articleUrl}#webpage`}, isPartOf:{'@id':`${SITE}${base}#website`} },
@@ -1649,7 +1671,7 @@ app.get('*', async (c) => {
       <div class="code">404</div>
       <h1>${lang==='en'?'Page not found':'页面不存在'}</h1>
       <p><a href="${baseOf(lang)}">${lang==='en'?'← Back to home':'← 返回首页'}</a></p>
-    </div>`, { noSidebar:true }), 404)
+    </div>`, { noSidebar:true, omitCanonical:true }), 404)
   } catch (e) {
     return c.text('ERROR: ' + e.message + '\n' + (e.stack||'').split('\n').slice(0,5).join('\n'))
   }
