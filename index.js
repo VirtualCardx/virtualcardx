@@ -398,27 +398,6 @@ function langSwitchHref(lang, curPath) {
   }
   return query ? out + '?' + query : out
 }
-// 第一方、无 Cookie 的价值出口统计：仅记录自家目录站的外链点击。
-// 页面浏览由 Cloudflare Web Analytics 负责；D1 仅聚合 out 事件，不记录 IP、UA 或个人标识。
-const trackScript = `<script>
-(function(){
-  function send(k, t){
-    try{
-      var body = JSON.stringify({ k: k, p: location.pathname, t: t || '' });
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/ev', new Blob([body], { type: 'application/json' }));
-      } else {
-        fetch('/api/ev', { method:'POST', body: body, keepalive: true, headers:{'content-type':'application/json'} });
-      }
-    }catch(e){}
-  }
-  document.addEventListener('click', function(e){
-    var a = e.target && e.target.closest ? e.target.closest('a[data-out]') : null;
-    if (a) send('out', a.getAttribute('data-out'));
-  }, true);
-})();
-</script>
-`
 function layout(lang, title, desc, body, opts={}) {
   const base = baseOf(lang)
   const cats = lang==='en' ? CATS_EN : CATS_ZH
@@ -546,7 +525,6 @@ ${opts.extraHead||''}
   // 菜单展开时锁定滚动 (可选)
 })();
 </script>
-${trackScript}
 </body>
 </html>`
 }
@@ -1094,51 +1072,6 @@ app.get('/api/health', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').all()
     return apiJson({ ok: true, service: 'vcx-new', time: new Date().toISOString() })
-  } catch (e) {
-    return apiJson({ ok: false, error: e.message }, 500)
-  }
-})
-
-// ── 第一方站点统计 (无 Cookie, 仅聚合计数) ────────────────────────────────
-// POST /api/ev  body: { k:'pv'|'out', p:'/path', t:'target' }
-app.post('/api/ev', async (c) => {
-  try {
-    const b = await c.req.json()
-    const k = b && b.k === 'out' ? 'out' : 'pv'
-    const p = String((b && b.p) || '').slice(0, 120)
-    const t = String((b && b.t) || '').slice(0, 120)
-    if (!p.startsWith('/')) return apiJson({ ok: false }, 400)
-    const day = new Date().toISOString().slice(0, 10)
-    await c.env.DB.prepare(
-      'INSERT INTO site_events (day, kind, path, target, n) VALUES (?, ?, ?, ?, 1) ' +
-      'ON CONFLICT(day, kind, path, target) DO UPDATE SET n = n + 1'
-    ).bind(day, k, p, t).run()
-    return apiJson({ ok: true })
-  } catch (e) {
-    // 统计失败绝不能影响页面体验
-    return apiJson({ ok: false }, 200)
-  }
-})
-
-// GET /api/stats/events — 汇总 (需 Bearer)
-//   ?days=28  返回 { totals, byKind, topPages, topTargets, daily }
-app.get('/api/stats/events', async (c) => {
-  const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
-  try {
-    const days = Math.min(Math.max(parseInt(c.req.query('days') || '28') || 28, 1), 365)
-    const since = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10)
-    const daily = (await c.env.DB.prepare(
-      'SELECT day, kind, SUM(n) AS n FROM site_events WHERE day >= ? GROUP BY day, kind ORDER BY day'
-    ).bind(since).all()).results
-    const topPages = (await c.env.DB.prepare(
-      "SELECT path, SUM(n) AS n FROM site_events WHERE day >= ? AND kind = 'pv' GROUP BY path ORDER BY n DESC LIMIT 25"
-    ).bind(since).all()).results
-    const topTargets = (await c.env.DB.prepare(
-      "SELECT path, target, SUM(n) AS n FROM site_events WHERE day >= ? AND kind = 'out' GROUP BY path, target ORDER BY n DESC LIMIT 25"
-    ).bind(since).all()).results
-    const totals = {}
-    for (const r of daily) totals[r.kind] = (totals[r.kind] || 0) + r.n
-    return apiJson({ ok: true, days, since, totals, daily, topPages, topTargets })
   } catch (e) {
     return apiJson({ ok: false, error: e.message }, 500)
   }
