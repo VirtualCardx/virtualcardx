@@ -532,7 +532,7 @@ ${opts.extraHead||''}
 // 侧边栏最新文章
 async function recentPosts(c, lang, limit=5) {
   const { results } = await c.env.DB.prepare(
-    'SELECT slug, title, path FROM posts WHERE lang = ? AND status="publish" ORDER BY date DESC LIMIT ?'
+    'SELECT slug, title, path, sticky FROM posts WHERE lang = ? AND status="publish" ORDER BY sticky DESC, date DESC LIMIT ?'
   ).bind(lang, limit).all()
   const base = baseOf(lang)
   const items = results.map(p => `<li><a href="${base}${p.path}/">${esc(p.title)}</a></li>`).join('')
@@ -700,7 +700,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   if (!catRes.results.length) return null
   const catId = catRes.results[0].id
   const { results: posts } = await c.env.DB.prepare(
-    'SELECT slug, title, path, date, category_ids, featured_media, translation_id, excerpt FROM posts WHERE lang = ? AND status="publish" ORDER BY date DESC'
+    'SELECT slug, title, path, date, category_ids, featured_media, translation_id, excerpt, sticky FROM posts WHERE lang = ? AND status="publish" ORDER BY sticky DESC, date DESC'
   ).bind(lang).all()
   // 英文分类: category_ids 为空, 通过翻译配对取中文 category_ids
   let zhCatMap = {}
@@ -825,22 +825,20 @@ async function renderHomePage(c, lang, page) {
   if (lang === 'en') {
     const isRealArticle = (p) => /^\d{4}\/\d{2}\/\d{2}\//.test(p.path) || (!p.path.includes('/') && p.translation_id != null)
     results = (await c.env.DB.prepare(
-      'SELECT slug, title, excerpt, path, date, featured_media, translation_id FROM posts WHERE lang = ? AND status = \'publish\' ORDER BY date DESC'
+      'SELECT slug, title, excerpt, path, date, featured_media, translation_id, sticky FROM posts WHERE lang = ? AND status = \'publish\' ORDER BY sticky DESC, date DESC'
     ).bind('en').all()).results.filter(isRealArticle)
-    results.sort((a,b) => {
-      const ts = (d) => {
-        const s = String(d||'')
-        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return Date.parse(s.slice(0,10))
-        return Date.parse(s) || 0
-      }
-      return ts(b.date) - ts(a.date)
-    })
+    const ts = (d) => {
+      const s = String(d||'')
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return Date.parse(s.slice(0,10))
+      return Date.parse(s) || 0
+    }
+    results.sort((a,b) => (b.sticky||0) - (a.sticky||0) || ts(b.date) - ts(a.date))
     total = results.length
   } else {
     const { results: totalRes } = await c.env.DB.prepare('SELECT COUNT(*) as n FROM posts WHERE lang = ? AND status = "publish"').bind(lang).all()
     total = totalRes[0].n
     const { results: r } = await c.env.DB.prepare(
-      'SELECT slug, title, excerpt, path, date, featured_media, translation_id FROM posts WHERE lang = ? AND status = "publish" ORDER BY date DESC'
+      'SELECT slug, title, excerpt, path, date, featured_media, translation_id, sticky FROM posts WHERE lang = ? AND status = "publish" ORDER BY sticky DESC, date DESC'
     ).bind(lang).all()
     results = r
   }
@@ -1090,7 +1088,7 @@ app.get('/api/posts', async (c) => {
   if (q) { where += ' AND (title LIKE ? OR content LIKE ?)'; params.push(`%${q}%`, `%${q}%`) }
   const total = (await c.env.DB.prepare(`SELECT COUNT(*) as n FROM posts WHERE ${where}`).bind(...params).all()).results[0].n
   const { results } = await c.env.DB.prepare(
-    `SELECT id, lang, slug, title, excerpt, path, date, modified, status, featured_media, category_ids, tag_ids, translation_id FROM posts WHERE ${where} ORDER BY date DESC LIMIT ? OFFSET ?`
+    `SELECT id, lang, slug, title, excerpt, path, date, modified, status, featured_media, category_ids, tag_ids, translation_id, sticky FROM posts WHERE ${where} ORDER BY sticky DESC, date DESC LIMIT ? OFFSET ?`
   ).bind(...params, limit, offset).all()
   return apiJson({ total, limit, offset, posts: results })
 })
