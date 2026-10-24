@@ -445,22 +445,12 @@ function parsePage(n) {
 const CATS_ZH = [
   ['/virtual-credit-card/', '虚拟卡评测'],
   ['/cross-border-collections/', '跨境支付收款'],
-  ['/technology-share/', '技术教程'],
-  ['/artificial-intelligence/', 'AI 工具'],
-  ['/seo/', 'SEO 与流量'],
-  ['/social-media/', '社媒运营外贸'],
   ['/cryptocurrency/', '加密货币'],
-  ['/resource-share/', '免费资源'],
 ]
 const CATS_EN = [
   ['/en/virtual-credit-card/', 'Virtual Cards'],
   ['/en/cross-border-collections/', 'Payments'],
-  ['/en/technology-share/', 'Tech'],
-  ['/en/artificial-intelligence/', 'AI Tools'],
-  ['/en/seo/', 'SEO'],
-  ['/en/social-media/', 'Social & Trade'],
   ['/en/cryptocurrency/', 'Crypto'],
-  ['/en/resource-share/', 'Free Resources'],
 ]
 // 分类英文名映射 (slug -> 英文名, 用于英文分类页标题)
 const CATEGORY_NAMES_EN = {
