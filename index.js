@@ -1620,7 +1620,7 @@ app.get('*', async (c) => {
         <h1>${esc(p.title)}</h1>
         <div class="article-meta">
           <span>🕐 ${esc(fmtDate(p.date))}</span>
-          <a class="author-link" href="${base}about/">✍️ ${lang==='en'?'Moyi Foreign Trade':'木易外贸'}</a>
+          <a class="author-link" href="${base}about/">✍️ Kenneth Lau</a>
         </div>
       </div>
       ${heroHtml}
@@ -1636,7 +1636,7 @@ app.get('*', async (c) => {
           { '@type':'Article', '@id':`${articleUrl}#article`, headline:p.title.slice(0,110), description:articleDesc, url:articleUrl,
             image:articleImage ? [articleImage] : undefined,
             datePublished:publishedDate, dateModified:modifiedDate, inLanguage:lang==='en'?'en':'zh-CN',
-            author:{'@type':'Person',name:lang==='en'?'Moyi Foreign Trade':'木易外贸',url:`${SITE}${base}about/`},
+            author:{'@type':'Person',name:'Kenneth Lau',url:`${SITE}${base}about/`,'sameAs':['https://www.linkedin.com/in/kenneth-lau-77a551379','https://www.linkedin.com/company/virtualcardx']},
             publisher:{'@type':'Organization','@id':`${SITE}/#organization`,name:'VirtualCardx',logo:{'@type':'ImageObject',url:`${SITE}/media/1556-cropped-logo.png`,width:128,height:45}},
             mainEntityOfPage:{'@id':`${articleUrl}#webpage`}, isPartOf:{'@id':`${SITE}${base}#website`} },
           { '@type':'WebPage', '@id':`${articleUrl}#webpage`, url:articleUrl, name:p.title, inLanguage:lang==='en'?'en':'zh-CN', mainEntity:{'@id':`${articleUrl}#article`} },
