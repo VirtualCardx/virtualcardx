@@ -31,14 +31,6 @@ app.use('*', async (c, next) => {
 
 // Migrated off-topic posts -> personal blog (batch 1, 2026-10-24)
 const BLOG_MOVED = new Map(Object.entries({
-  "2025/12/20/no-kyc-vcc-pikabao": "no-kyc-vcc-pikabao",
-  "2025/12/20/bitget": "bitget",
-  "2025/12/19/dogpay": "dogpay",
-  "2025/12/18/no-kyc-vidtualcreditcard-supaycard": "no-kyc-vidtualcreditcard-supaycard",
-  "2025/05/21/saillinepay": "saillinepay",
-  "2025/05/16/trustee": "trustee",
-  "2025/02/11/hicard": "hicard",
-  "2025/02/11/zan-pay-vcc": "zan-pay-vcc",
   "fibocom-l850-gl-manual-network-selection-tool": "fibocom-l850-gl-manual-network-selection-tool",
   "opera-android-free-esim-3gb-guide": "opera-android-free-esim-3gb-guide",
   "ai-subscription-comparison-2026": "ai-subscription-comparison-2026",
