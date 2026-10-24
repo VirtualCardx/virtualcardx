@@ -15,6 +15,19 @@ app.use('*', async (c, next) => {
   }
   await next()
 })
+// Legacy WP-era query-param URLs (e.g. /?query-27a53e09-page=2&cst, /en/?query-...-page=3)
+// still circulate in Google's index and split impressions. 301 them to the clean path.
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url)
+  if (c.req.method === 'GET' || c.req.method === 'HEAD') {
+    const keys = [...url.searchParams.keys()]
+    if (keys.some((k) => /^query-[0-9a-z]+-/i.test(k))) {
+      url.search = ''
+      return c.redirect(url.toString(), 301)
+    }
+  }
+  await next()
+})
 // Public HTML has one canonical form: trailing slash. Keep APIs, static assets and
 // extension paths untouched so only route documents are normalized.
 app.use('*', async (c, next) => {
