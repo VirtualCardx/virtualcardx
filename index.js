@@ -28,6 +28,39 @@ app.use('*', async (c, next) => {
   }
   await next()
 })
+
+// Migrated off-topic posts -> personal blog (batch 1, 2026-10-24)
+const BLOG_MOVED = new Map(Object.entries({
+  "bing-webmaster-tools-indexnow-guide-2026": "bing-webmaster-tools-indexnow-guide-2026",
+  "2025/02/04/how-to-check-if-domain-penalized-by-google": "how-to-check-if-domain-penalized-by-google",
+  "site-migration-301-sitemap-seo-guide": "site-migration-301-sitemap-seo-guide",
+  "cloudflare-workers-free-api-safety-guide": "cloudflare-workers-free-api-safety-guide",
+  "2026/07/24/hermes-agent-rclone-r2-cron-backup": "hermes-agent-rclone-r2-cron-backup",
+  "2026/07/19/cheap-vps-2026-summer-buying-guide": "cheap-vps-2026-summer-buying-guide",
+  "2026/07/16/wordpress-performance-optimization-guide": "wordpress-performance-optimization-guide",
+  "2026/07/10/ai-overviews-seo-traffic-strategy": "ai-overviews-seo-traffic-strategy",
+  "2026/07/04/tailscale-intranet-penetration-guide": "tailscale-intranet-penetration-guide",
+  "2026/07/04/tailscale-yidi-zuwang-shice-bikeng": "tailscale-yidi-zuwang-shice-bikeng",
+  "2026/07/05/virtualbox-p-core-e-core-fix": "virtualbox-p-core-e-core-fix",
+  "2026/07/05/ai-content-seo-strategy": "ai-content-seo-strategy",
+  "2026/07/05/wordpress-debug-mode": "wordpress-debug-mode",
+  "2026/07/04/foreign-trade-practice-valve-factory-guide": "foreign-trade-practice-valve-factory-guide",
+  "2026/07/04/openclaw-vps-selection-guide": "openclaw-vps-selection-guide",
+  "2026/07/04/cloudflare-15-year-free-ssl-certificate-guide": "cloudflare-15-year-free-ssl-certificate-guide",
+  "2026/03/01/cloudflare-astro-enable-indexnow": "cloudflare-astro-enable-indexnow",
+  "2026/02/20/windows-10-11-delete-github-credentials": "windows-10-11-delete-github-credentials",
+  "2025/12/09/free-subdomain-list-update": "free-subdomain-list-update",
+  "2025/12/08/htaccess-redirect-http-to-https": "htaccess-redirect-http-to-https"
+}))
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url)
+  const m = url.pathname.match(/^\/(?:en\/)?(.+?)\/?$/)
+  if (m && BLOG_MOVED.has(m[1])) {
+    return c.redirect(`https://blog.andou.eu.org/blog/${BLOG_MOVED.get(m[1])}/`, 301)
+  }
+  await next()
+})
+
 // Public HTML has one canonical form: trailing slash. Keep APIs, static assets and
 // extension paths untouched so only route documents are normalized.
 app.use('*', async (c, next) => {
