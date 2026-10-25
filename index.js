@@ -509,9 +509,9 @@ function layout(lang, title, desc, body, opts={}) {
   const sidebar = opts.noSidebar ? '' : `
   <aside class="sidebar">
     <div class="widget author-card">
-      <div class="author-avatar">木</div>
-      <div class="author-name">${lang==='en'?'Moyi Foreign Trade':'木易外贸'}</div>
-      <p>${lang==='en'?'Virtual card reviews & cross-border payment guides.':'虚拟信用卡实测评测，跨境电商支付经验分享。'}</p>
+      <div class="author-avatar">K</div>
+      <div class="author-name">Kenneth Lau</div>
+      <p>${lang==='en'?'Independent virtual card reviewer — first-hand testing, tiered source verification.':'跨境支付独立评测人：官方实测优先，分级信源核验。'}</p>
     </div>
     <div class="widget">
       <h3>${lang==='en'?'Recent Posts':'最新文章'}</h3>
