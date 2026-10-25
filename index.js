@@ -1082,7 +1082,7 @@ app.get('/sitemap.xml', async (c) => {
     const lastmod = (p.modified||'').slice(0,10)
     return `<url><loc>${SITE}${base}${p.path}/</loc>${lastmod?`<lastmod>${lastmod}</lastmod>`:''}</url>`
   }).join('')
-  const staticSlugs = ['about','contact','terms','privacy-policy','technology-share','virtual-credit-card','cryptocurrency','cross-border-collections','social-media','artificial-intelligence','seo','resource-share']
+  const staticSlugs = ['about','contact','terms','privacy-policy','virtual-credit-card','cryptocurrency','cross-border-collections']
   const staticUrls = ['/', '/en/', ...staticSlugs.flatMap(slug => [`/${slug}/`, `/en/${slug}/`])]
     .map(path => `<url><loc>${SITE}${path}</loc></url>`).join('')
   return c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${staticUrls}${postUrls}</urlset>`,
