@@ -428,16 +428,16 @@ test('列表网格按列数补齐占位格，末行不留缺口', async () => {
 })
 
 test('英文首页的分类名走英文映射，不吐库里的中文名', async () => {
-  // 英文首页只收「真英文文章」（日期路径，或纯 slug + 有翻译配对），
-  // 所以这篇要带 translation_id，否则它根本不会进列表，断言就成了空转
+  // 英文首页只收「真英文文章」：日期式路径，或存在同路径中文原文的译文。
+  // 这里用日期式路径，避免为了凑列表再补一条中文种子。
   const { env, ctx } = fresh({
     posts: [
       ...basePosts,
       {
         id: 301, lang: 'en', slug: 'en-cat-post', title: 'Card With Category',
-        excerpt: 'Has a category.', content: '<p>Body</p>', path: 'en-cat-post',
+        excerpt: 'Has a category.', content: '<p>Body</p>', path: '2026/05/01/en-cat-post',
         date: '2026-05-01', modified: '2026-05-01', status: 'publish',
-        featured_media: null, category_ids: '[7]', tag_ids: '[]', translation_id: 5, sticky: 0,
+        featured_media: null, category_ids: '[7]', tag_ids: '[]', translation_id: null, sticky: 0,
       },
     ],
   })
@@ -483,6 +483,35 @@ test('语言切换和 hreflang 只指向真实配对', async () => {
   const englishOnly = await (await fetchPath(env, ctx, '/en/2026/07/04/tailscale-guide/')).text()
   assert.ok(!englishOnly.includes('hreflang="zh"'), '英文独有文章不应伪造中文 alternate')
   assert.ok(!englishOnly.includes('href="/2026/07/04/tailscale-guide/" hreflang="zh"'), '没有中文配对时不应显示语言切换')
+})
+
+test('配对以同路径为准，translation_id 指错也不跟着错', async () => {
+  // 线上真实形态：translation_id 大量指向同语言或无关文章，只有 4 条双向对应。
+  // 这里故意把两条记录的 translation_id 指到无关文章，页面不能跟着它们生成 alternate。
+  const posts = [
+    ...basePosts.map(p => p.id === 3 ? { ...p, translation_id: 102 } : p),
+    {
+      id: 302, lang: 'en', slug: 'bogus-pair-post', title: 'Bogus Pair Post',
+      excerpt: 'Points at an unrelated Chinese post.', content: '<p>Body</p>',
+      path: 'bogus-pair-post', date: '2026-04-01', modified: '2026-04-01',
+      status: 'publish', featured_media: null, category_ids: '[]', tag_ids: '[]',
+      translation_id: 3, sticky: 0,
+    },
+  ]
+  const { env, ctx } = fresh({ posts })
+
+  // 中文页的 translation_id 指向另一篇英文文章（路径不同）：不能因此出现语言切换
+  const zh = await (await fetchPath(env, ctx, '/crypto-card-guide/')).text()
+  assert.ok(!zh.includes('hreflang="en"'), '路径不同就不算配对，不应输出英文 alternate')
+  assert.ok(!zh.includes('href="/en/2026/07/04/tailscale-guide/" hreflang="en"'), '不能指向另一篇文章')
+
+  // 英文页的 translation_id 指向中文原文（路径不同）：同样不算配对
+  const en = await (await fetchPath(env, ctx, '/en/bogus-pair-post/')).text()
+  assert.ok(!en.includes('hreflang="zh"'), '指错的中文记录不应成为 alternate')
+
+  // 纯中文路径的英文记录没有同路径中文原文，不进英文首页（它是残留而非译文）
+  const home = await (await fetchPath(env, ctx, '/en/')).text()
+  assert.ok(!home.includes('Bogus Pair Post'), '没有同路径原文的英文记录不应进英文首页')
 })
 
 test('英文回退中文正文时 canonical 回原文且 noindex', async () => {

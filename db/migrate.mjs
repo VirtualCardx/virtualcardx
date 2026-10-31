@@ -93,6 +93,9 @@ for (const name of ['sticky', 'date_ts', 'modified_ts']) {
 
 invoke(['--file', path.join(root, 'db/schema.sql')])
 invoke(['--file', path.join(root, 'db/migrations/2026-10-31-query-indexes.sql')])
+// 配对指针重建：translation_id 在迁移数据里指向混乱，代码已改为按 path 判定，
+// 这里把列本身也修正到同一口径，避免下一个读它的人再被误导。
+invoke(['--file', path.join(root, 'db/migrations/2026-10-31-translation-pairing.sql')])
 
 const integrity = jsonCommand("SELECT COUNT(*) AS n FROM posts WHERE date IS NOT NULL AND date <> '' AND date_ts IS NULL")
 console.log(`迁移完成 (${scope})。无法解析日期的文章数: ${integrity[0]?.results?.[0]?.n ?? 'unknown'}`)

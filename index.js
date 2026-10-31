@@ -990,19 +990,20 @@ async function rewriteImages(c, html, fallbackAlt='', opts={}) {
 // 查询固定 2 次（配对摘要 + 分类名称），不随文章数增长。
 async function renderPostCards(c, lang, posts, opts = {}) {
   const base = baseOf(lang)
-  // translation_id 保存的是另一语言记录的主键。英文缺摘要/分类时，按中文主键查。
+  // 迁移过来的 translation_id 并不可靠（同语言互指、单边指错的都有），
+  // 真正稳定的等价关系是「同路径、另一语言」。英文缺摘要/分类时按 path 取中文记录。
   const needPair = new Set()
   for (const p of posts) {
     const needsExcerpt = lang === 'en' && !excerptText(p.excerpt)
     const needsCategory = lang === 'en' && opts.showCat && (!p.category_ids || p.category_ids === '[]')
-    if (p.translation_id && (needsExcerpt || needsCategory)) needPair.add(p.translation_id)
+    if (p.path && (needsExcerpt || needsCategory)) needPair.add(p.path)
   }
   const pairRows = new Map()
   if (needPair.size) {
     const rows = await queryAll(c,
-      `SELECT id, excerpt, category_ids FROM posts WHERE lang = 'zh' AND id IN (${ph(needPair.size)})`,
+      `SELECT path, excerpt, category_ids FROM posts WHERE lang = 'zh' AND status = 'publish' AND path IN (${ph(needPair.size)})`,
       [...needPair])
-    for (const r of rows) pairRows.set(r.id, r)
+    for (const r of rows) pairRows.set(r.path, r)
   }
   // 分类 id -> 名称（只有 3 个分类，一次全表查询比每篇 JOIN 便宜）
   // 英文站不能直接吐 categories.name（库里存的是中文），按 slug 走一次映射
@@ -1015,7 +1016,7 @@ async function renderPostCards(c, lang, posts, opts = {}) {
   const catOf = (p) => {
     if (!catName.size) return ''
     let raw = p.category_ids
-    if ((!raw || raw === '[]') && p.translation_id) raw = pairRows.get(p.translation_id)?.category_ids
+    if ((!raw || raw === '[]') && p.path) raw = pairRows.get(p.path)?.category_ids
     if (!raw) return ''
     let ids = []
     try { ids = JSON.parse(raw) || [] } catch { ids = [] }
@@ -1034,7 +1035,7 @@ async function renderPostCards(c, lang, posts, opts = {}) {
     return Math.max(1, Math.round(n / 400))
   }
   return posts.map((p) => {
-    const pair = p.translation_id ? pairRows.get(p.translation_id) : null
+    const pair = p.path ? pairRows.get(p.path) : null
     const ownExcerpt = excerptText(p.excerpt, 120)
     const excerpt = ownExcerpt || (pair ? excerptText(pair.excerpt, 120) : '')
     const excerptLang = !ownExcerpt && pair && pair.excerpt ? ' lang="zh"' : ''
@@ -1156,7 +1157,7 @@ async function handleSearch(c, lang, q, page = 1) {
 }
 
 // 分类渲染 (带分页)。分类关系走 post_categories，英文优先取自身分类，
-// 自身为空时沿 translation_id 取中文配对；没有英文配对的中文原文单列回退。
+// 自身为空时取同路径的中文记录；没有英文版本的中文原文单列回退。
 async function renderCategory(c, lang, parentSlug, childSlug, page) {
   const base = baseOf(lang)
   let catRes
@@ -1182,7 +1183,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
            COALESCE(NULLIF(p.category_ids, '[]'), z.category_ids, '[]') AS category_ids,
            p.translation_id, p.excerpt, p.sticky, p.content, p.date_ts, p.modified_ts, 0 AS isZhFallback
     FROM posts p
-    LEFT JOIN posts z ON z.id = p.translation_id AND z.lang = 'zh' AND z.status = 'publish'
+    LEFT JOIN posts z ON z.path = p.path AND z.lang = 'zh' AND z.status = 'publish'
     WHERE p.lang = 'en' AND p.status = 'publish'
       AND (EXISTS (SELECT 1 FROM post_categories pc WHERE pc.post_id = p.id AND pc.category_id = ?)
         OR EXISTS (SELECT 1 FROM post_categories pcz WHERE pcz.post_id = z.id AND pcz.category_id = ?))`
@@ -1191,7 +1192,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
            NULL AS translation_id, z.excerpt, z.sticky, z.content, z.date_ts, z.modified_ts, 1 AS isZhFallback
     FROM posts z JOIN post_categories pc ON pc.post_id = z.id
     WHERE z.lang = 'zh' AND z.status = 'publish' AND pc.category_id = ?
-      AND NOT EXISTS (SELECT 1 FROM posts e WHERE e.id = z.translation_id AND e.lang = 'en' AND e.status = 'publish')`
+      AND NOT EXISTS (SELECT 1 FROM posts e WHERE e.path = z.path AND e.lang = 'en' AND e.status = 'publish')`
   const buildSource = (language) => language === 'zh'
     ? { sql: zhSelect, params: [catId] }
     : { sql: `${enRealSelect} UNION ALL ${enFallbackSelect}`, params: [catId, catId, catId] }
@@ -1260,8 +1261,8 @@ async function renderHomePage(c, lang, page) {
   const base = baseOf(lang)
   const offset = (page-1)*PER_PAGE
   const COLS = 'slug, title, excerpt, content, path, date, modified, category_ids, translation_id, sticky'
-  // 英文首页只收真实英文文章：日期式 URL，或带翻译配对的纯 slug。
-  const enReal = "(path GLOB '????/??/??/*' OR (instr(path, '/') = 0 AND translation_id IS NOT NULL))"
+  // 英文首页只收真实英文文章：日期式 URL，或存在同路径的中文原文（说明这是译文而非残留）。
+  const enReal = "(path GLOB '????/??/??/*' OR EXISTS (SELECT 1 FROM posts z WHERE z.lang = 'zh' AND z.status = 'publish' AND z.path = posts.path))"
   const where = lang === 'en'
     ? `lang = 'en' AND status = 'publish' AND ${enReal}`
     : "lang = 'zh' AND status = 'publish'"
@@ -1431,7 +1432,7 @@ app.get('/sitemap.xml', async (c) => {
 
 // RSS：语言独立的订阅入口，日期与链接都经过规范化和 XML 转义。
 async function feedXml(c, lang) {
-  const real = "(path GLOB '????/??/??/*' OR (instr(path, '/') = 0 AND translation_id IS NOT NULL))"
+  const real = "(path GLOB '????/??/??/*' OR EXISTS (SELECT 1 FROM posts z WHERE z.lang = 'zh' AND z.status = 'publish' AND z.path = posts.path))"
   const where = lang === 'en'
     ? `lang = 'en' AND status = 'publish' AND ${real}`
     : "lang = 'zh' AND status = 'publish'"
@@ -2176,11 +2177,13 @@ app.get('*', async (c) => {
     const base = baseOf(lang)
     const path = postPath
     // 只有明确的配对记录才生成语言切换和 hreflang；不能按 URL 猜。
+    // 判定标准是同路径 + 另一语言 + 已发布：translation_id 在历史数据里指错得太多，
+    // 拿它当依据会把中文页的 hreflang 指到另一篇英文文章上。
     let pair = null
-    if (p.translation_id) {
+    if (p.path) {
       pair = await c.env.DB.prepare(
-        "SELECT id, path, lang, featured_media FROM posts WHERE id = ? AND status = 'publish' LIMIT 1"
-      ).bind(p.translation_id).first()
+        "SELECT id, path, lang, featured_media FROM posts WHERE path = ? AND lang <> ? AND status = 'publish' LIMIT 1"
+      ).bind(p.path, lang).first()
     }
     const altHref = pair ? `${baseOf(pair.lang)}${pair.path}/` : ''
     const altLang = pair?.lang || (lang==='zh' ? 'en' : 'zh')
