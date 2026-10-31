@@ -125,7 +125,7 @@ app.use('*', async (c, next) => {
   const path = url.pathname
   const isDocumentPath = !path.endsWith('/') &&
     !path.startsWith('/api/') && !path.startsWith('/media/') &&
-    !path.startsWith('/media-webp/') &&
+    !path.startsWith('/media-webp/') && !path.startsWith('/search') &&
     !/\/[^/]+\.[a-z0-9]{1,10}$/i.test(path)
   if ((c.req.method === 'GET' || c.req.method === 'HEAD') && isDocumentPath) {
     url.pathname = `${path}/`
@@ -188,9 +188,14 @@ app.use('*', async (c, next) => {
   const excluded = path.startsWith('/api/') || path.startsWith('/media/') || path.startsWith('/search') ||
     path === '/sitemap.xml' || path === '/robots.txt' || path === '/favicon.ico' || path === '/virtualcardx2026.txt'
   if ((method === 'GET' || method === 'HEAD') && !url.search && !excluded && contentType.toLowerCase().includes('text/html')) {
-    // 浏览器每次重新验证；Cloudflare 边缘缓存 30 分钟，内容更新由受信发布客户端精准 purge。
-    c.header('Cache-Control', 'public, max-age=0, must-revalidate')
-    c.header('CDN-Cache-Control', 'public, max-age=1800')
+    if (c.res.status === 200) {
+      // 浏览器每次重新验证；Cloudflare 边缘缓存 30 分钟，内容更新由受信发布客户端精准 purge。
+      c.header('Cache-Control', 'public, max-age=0, must-revalidate')
+      c.header('CDN-Cache-Control', 'public, max-age=1800')
+    } else {
+      // 404 / 5xx 不写边缘缓存：否则一次临时错误页会在 CDN 上挂 30 分钟
+      c.header('Cache-Control', 'no-store')
+    }
   }
 })
 const SITE = 'https://virtualcardx.com'
@@ -394,8 +399,24 @@ function excerptText(value, max = 320) {
   }
   return cut.trim()
 }
-function getLang(pathname) { return pathname.startsWith('/en') ? 'en' : 'zh' }
+function getLang(pathname) {
+  // 精确匹配语言前缀: 旧的 startsWith('/en') 会把 /english-xxx/、/env-xxx/ 误判成英文站
+  return pathname === '/en' || pathname.startsWith('/en/') ? 'en' : 'zh'
+}
 function baseOf(lang) { return lang==='en' ? '/en/' : '/' }
+// 生成 IN (?,?,...) 占位符
+function ph(n) { return new Array(n).fill('?').join(',') }
+// 一次性取结果集 (批量查询用)
+async function queryAll(c, sql, params) {
+  return (await c.env.DB.prepare(sql).bind(...params).all()).results
+}
+// 常量时间字符串比较 (API Token 校验, 避免逐字符短路)
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false
+  let out = 0
+  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return out === 0
+}
 // 日期格式化: 兼容 ISO (2026-08-04T02:07:35) 和可读格式 (November 21, 2025)
 function fmtDate(d) {
   if (!d) return ''
@@ -439,6 +460,17 @@ function parsePage(n) {
   const p = parseInt(n, 10)
   if (p < 1) return null
   return p
+}
+// 统一 404 页面: 与 catch-all 结尾同款。不带 canonical/hreflang, 强制 noindex。
+// 之前越界分页/不存在的分类走 c.notFound()，返回 Hono 默认纯文本 —— 与站点 404 两套样式，
+// 且没有 robots 指令，会被搜索引擎当成可索引的薄页面。
+function notFoundHtml(c, lang) {
+  return c.html(layout(lang, '404 Not Found - VirtualCardx', 'Page not found', `
+    <div class="notfound">
+      <div class="code">404</div>
+      <h1>${lang==='en'?'Page not found':'页面不存在'}</h1>
+      <p><a href="${baseOf(lang)}">${lang==='en'?'← Back to home':'← 返回首页'}</a></p>
+    </div>`, { noSidebar:true, noindex:true, omitCanonical:true }), 404)
 }
 
 // 分类导航条 (中英)
@@ -544,7 +576,7 @@ ${seoHead}
 <meta property="og:locale" content="${lang==='en'?'en_US':'zh_CN'}">
 ${(opts.extraHead||'').includes('og:image') ? '' : `<meta property="og:image" content="${SITE}/media/1556-cropped-logo.png"><meta property="og:image:alt" content="VirtualCardx">`}
 <meta name="twitter:card" content="summary">
-${opts.jsonld ? `<script type="application/ld+json">${JSON.stringify(opts.jsonld)}</script>` : ''}
+${opts.jsonld ? `<script type="application/ld+json">${JSON.stringify(opts.jsonld).replace(/</g, '\\u003c')}</script>` : ''}
 ${opts.extraHead||''}
 <style>${CSS}</style>
 </head>
@@ -633,14 +665,28 @@ async function recentPosts(c, lang, limit=5) {
 }
 
 // 图片重写 (支持 src 和 data-src, 以及 srcset)
+// 查询批量化: 每篇文章最多 2 次 D1 查询 (旧实现每张图 2 次), 避免图多的文章顶到
+// Workers 单请求 subrequest 上限。
 async function rewriteImages(c, html, fallbackAlt='') {
+  // 1) 旧 WP 上传路径 -> 现存 media.path (一次 IN 查询)
   const re = /\/wp-content\/uploads\/[^"'\s)]+/g
   const found = [...new Set(html.match(re) || [])]
-  for (const oldPath of found) {
-    let fname = oldPath.split('/').pop().split('?')[0]
-    fname = fname.replace(/-\d+x\d+(?=\.[a-zA-Z]+$)/, '')
-    const { results } = await c.env.DB.prepare('SELECT path FROM media WHERE filename = ? LIMIT 1').bind(fname).all()
-    if (results.length) html = html.split(oldPath).join('/' + results[0].path)
+  if (found.length) {
+    const byName = new Map() // filename -> [oldPath]
+    for (const oldPath of found) {
+      let fname = oldPath.split('/').pop().split('?')[0]
+      fname = fname.replace(/-\d+x\d+(?=\.[a-zA-Z]+$)/, '')
+      if (!byName.has(fname)) byName.set(fname, [])
+      byName.get(fname).push(oldPath)
+    }
+    const rows = await queryAll(c,
+      `SELECT filename, path FROM media WHERE filename IN (${ph(byName.size)})`, [...byName.keys()])
+    const pathByFilename = new Map(rows.map(r => [r.filename, r.path]))
+    for (const [fname, oldPaths] of byName) {
+      const newPath = pathByFilename.get(fname)
+      if (!newPath) continue
+      for (const oldPath of oldPaths) html = html.split(oldPath).join('/' + newPath)
+    }
   }
   // 去除 smush lazyload 痕迹: data-src 提升为 src (无 JS 时也能显示)
   // 1) 先把完整域名替换为相对路径
@@ -658,26 +704,35 @@ async function rewriteImages(c, html, fallbackAlt='') {
     if (/srcset="/.test(pre+post)) return m
     return `<img${pre} srcset="${srcset}"${post}>`
   })
-  // 4) 从 media 表补准确尺寸与空 alt，降低 CLS 并改善可访问性
+  // 4) 从 media 表补准确尺寸与空 alt，降低 CLS 并改善可访问性 (一次 IN 查询)
   const imageTags = [...new Set(html.match(/<img\b[^>]*>/gi) || [])]
+  const tagToPath = new Map() // img tag -> media 表里的 path
   for (const tag of imageTags) {
     const srcMatch = tag.match(/\ssrc=["']\/?([^"']+)["']/i)
     if (!srcMatch || !srcMatch[1].startsWith('media/')) continue
     let mediaPath
     try { mediaPath = decodeURIComponent(srcMatch[1]) } catch { mediaPath = srcMatch[1] }
-    const { results } = await c.env.DB.prepare('SELECT width, height, alt FROM media WHERE path = ? LIMIT 1').bind(mediaPath).all()
-    if (!results.length) continue
-    const media = results[0]
-    let updated = tag
-    if (media.width && media.height && !/\swidth=/i.test(updated)) {
-      updated = updated.replace(/\s*\/?>$/, ` width="${media.width}" height="${media.height}">`)
+    tagToPath.set(tag, mediaPath)
+  }
+  if (tagToPath.size) {
+    const mediaPaths = [...new Set(tagToPath.values())]
+    const rows = await queryAll(c,
+      `SELECT path, width, height, alt FROM media WHERE path IN (${ph(mediaPaths.length)})`, mediaPaths)
+    const metaByPath = new Map(rows.map(r => [r.path, r]))
+    for (const [tag, mediaPath] of tagToPath) {
+      const media = metaByPath.get(mediaPath)
+      if (!media) continue
+      let updated = tag
+      if (media.width && media.height && !/\swidth=/i.test(updated)) {
+        updated = updated.replace(/\s*\/?>$/, ` width="${media.width}" height="${media.height}">`)
+      }
+      const alt = esc(media.alt || fallbackAlt)
+      if (alt) {
+        if (/\salt=["']\s*["']/i.test(updated)) updated = updated.replace(/\salt=["']\s*["']/i, ` alt="${alt}"`)
+        else if (!/\salt=/i.test(updated)) updated = updated.replace(/\s*\/?>$/, ` alt="${alt}">`)
+      }
+      html = html.split(tag).join(updated)
     }
-    const alt = esc(media.alt || fallbackAlt)
-    if (alt) {
-      if (/\salt=["']\s*["']/i.test(updated)) updated = updated.replace(/\salt=["']\s*["']/i, ` alt="${alt}"`)
-      else if (!/\salt=/i.test(updated)) updated = updated.replace(/\s*\/?>$/, ` alt="${alt}">`)
-    }
-    html = html.split(tag).join(updated)
   }
   // 5) 正文图片懒加载: 未标记的 img 加 loading=lazy + decoding=async (首图除外)
   let imgCount = 0
@@ -690,6 +745,76 @@ async function rewriteImages(c, html, fallbackAlt='') {
     return m.replace(/(<img[^>]*?)(\/?>)$/, '$1 loading="lazy" decoding="async">')
   })
   return html
+}
+
+// 列表卡片渲染 (首页/分类/搜索共用)。
+// 一次批量取 media 与中文配对信息，替代原实现"每张卡片 2~3 次查询"的 N+1：
+// 一页 10 篇从最多 ~30 次查询降到 2 次。
+// opts: { showCat, showZhTag, lcpFirst }
+async function renderPostCards(c, lang, posts, opts = {}) {
+  const base = baseOf(lang)
+  // 第一步: 先把英文文章的中文配对信息取回来 (特色图 / 摘要回退都依赖它)
+  const needPair = new Set()
+  for (const p of posts) {
+    if (lang !== 'en' || !p.translation_id) continue
+    if (!p.featured_media || !excerptText(p.excerpt)) needPair.add(p.translation_id)
+  }
+  const pairByTid = new Map()
+  if (needPair.size) {
+    const rows = await queryAll(c,
+      `SELECT translation_id, featured_media, excerpt FROM posts WHERE lang = 'zh' AND translation_id IN (${ph(needPair.size)})`,
+      [...needPair])
+    for (const r of rows) {
+      const cur = pairByTid.get(r.translation_id) || {}
+      if (!cur.featured_media && r.featured_media) cur.featured_media = r.featured_media
+      if (!cur.excerpt && r.excerpt) cur.excerpt = r.excerpt
+      pairByTid.set(r.translation_id, cur)
+    }
+  }
+  // 第二步: 解析出每篇文章最终用的特色图 id, 一次性查 media
+  // (配对回退得到的 id 必须并入同一批, 否则英文卡片永远拿不到图)
+  const fmByPost = new Map()
+  const needFm = new Set()
+  for (const p of posts) {
+    const pair = (lang === 'en' && p.translation_id) ? pairByTid.get(p.translation_id) : null
+    const fm = p.featured_media || (pair && pair.featured_media) || null
+    fmByPost.set(p, fm)
+    if (fm) needFm.add(fm)
+  }
+  const mediaById = new Map()
+  if (needFm.size) {
+    const rows = await queryAll(c,
+      `SELECT id, path, alt, width, height FROM media WHERE id IN (${ph(needFm.size)})`, [...needFm])
+    for (const r of rows) mediaById.set(r.id, r)
+  }
+  const cards = []
+  for (const p of posts) {
+    const pair = (lang === 'en' && p.translation_id) ? pairByTid.get(p.translation_id) : null
+    const fm = fmByPost.get(p)
+    const m = fm ? mediaById.get(fm) : null
+    let imgHtml = '<div class="no-img">💳</div>'
+    if (m) {
+      const dims = m.width && m.height ? ` width="${m.width}" height="${m.height}"` : ''
+      const isFirst = opts.lcpFirst && cards.length === 0
+      imgHtml = isFirst
+        ? `<img src="/${m.path}" alt="${esc(m.alt || p.title)}"${dims} fetchpriority="high" decoding="async">`
+        : `<img src="/${m.path}" alt="${esc(m.alt || p.title)}"${dims} loading="lazy" decoding="async">`
+    }
+    const excerpt = excerptText(p.excerpt) || (pair ? excerptText(pair.excerpt) : '')
+    const metaBits = []
+    if (opts.showCat) metaBits.push(`<span class="cat">${lang==='en'?'Review':'评测'}</span>`)
+    metaBits.push(`<span>${esc(fmtDate(p.date))}</span>`)
+    if (opts.showZhTag && p.isZhFallback) metaBits.push(`<span class="cat">${lang==='en'?'ZH':'中'}</span>`)
+    cards.push(`<article class="post-card">
+      <a class="post-thumb" href="${base}${p.path}/">${imgHtml}</a>
+      <div class="post-body">
+        <div class="post-meta">${metaBits.join('')}</div>
+        <h2 class="post-title"><a href="${base}${p.path}/">${esc(p.title)}</a></h2>
+        ${excerpt?`<div class="post-excerpt">${esc(excerpt)}</div>`:''}
+      </div>
+    </article>`)
+  }
+  return cards.join('')
 }
 
 // ============ 路由 ============
@@ -718,60 +843,27 @@ app.get('/media/*', async (c) => {
   obj.writeHttpMetadata(headers)
   // 图片为 R2 静态对象, 长缓存 + immutable (更新时改文件名即可)
   headers.set('Cache-Control', 'public, max-age=2592000, immutable')
-  headers.set('Vary', 'Accept') // 为 WebP/AVIF 协商留口子
+  headers.set('Vary', 'Accept') // 图片按 Accept 协商 WebP；AVIF 需先有 media-avif/ 生成管线，暂不声明
   return new Response(obj.body, { headers })
 })
 
-// 搜索
+// 搜索 (统一入口): 与 ?s= 共用同一套卡片式结果页 + 双语文案 + noindex。
+// 旧实现是另一套纯列表、缩略图缺失、空结果只写英文 "No results found"。
 app.get('/search', async (c) => {
   const lang = getLang(c.req.path)
   // 兼容 WP 风格 s 参数与 q 参数,避免 /search/?s=xx 被丢参 302 回首页
   const q = (c.req.query('q') || c.req.query('s') || '').trim()
-  const base = baseOf(lang)
-  if (!q) return c.redirect(base, 302)
-  const { results } = await c.env.DB.prepare(
-    'SELECT slug, title, path, date FROM posts WHERE lang = ? AND status="publish" AND (title LIKE ? OR content LIKE ?) ORDER BY date DESC LIMIT 20'
-  ).bind(lang, `%${q}%`, `%${q}%`).all()
-  const items = results.map(p => `<li><a href="${base}${p.path}/">${esc(p.title)}</a> <time>${esc(fmtDate(p.date))}</time></li>`).join('') || '<li>No results found</li>'
-  const body = `<h1 class="page-title">${lang==='en'?'Search':'搜索'}: ${esc(q)}</h1><ul class="post-list">${items}</ul>`
-  return c.html(layout(lang, `${q} - VirtualCardx`, `Search results for ${q}`, body, { noSidebar:true, path: `?s=${encodeURIComponent(q)}` }))
+  if (!q) return c.redirect(baseOf(lang), 302)
+  return c.html(await handleSearch(c, lang, q))
 })
 
-// ?s= 搜索 (WP 兼容)
+// 站内搜索 (WP 兼容 ?s= 与新版 /search?q= 共用)
 async function handleSearch(c, lang, q) {
-  const base = baseOf(lang)
-  const { results } = await c.env.DB.prepare(
-    'SELECT slug, title, excerpt, path, date, featured_media, translation_id FROM posts WHERE lang = ? AND status="publish" AND (title LIKE ? OR content LIKE ?) ORDER BY date DESC LIMIT 20'
-  ).bind(lang, `%${q}%`, `%${q}%`).all()
-  // 搜索列表与首页/分类一致: 卡片式, 带特色图 (英文无图时经配对取中文特色图)
-  const items = []
-  for (const p of results) {
-    let imgHtml = '<div class="no-img">💳</div>'
-    let fm = p.featured_media
-    if (lang === 'en' && !fm && p.translation_id) {
-      const zhRes = await c.env.DB.prepare(
-        'SELECT featured_media FROM posts WHERE lang = ? AND translation_id = ? AND featured_media IS NOT NULL AND featured_media != 0 LIMIT 1'
-      ).bind('zh', p.translation_id).all()
-      if (zhRes.results.length) fm = zhRes.results[0].featured_media
-    }
-    if (fm) {
-      const mRes = await c.env.DB.prepare('SELECT path, width, height FROM media WHERE id = ?').bind(fm).all()
-      if (mRes.results.length) {
-        const m = mRes.results[0]
-        imgHtml = `<img src="/${m.path}" alt="${esc(p.title)}"${m.width&&m.height?` width="${m.width}" height="${m.height}"`:''} loading="lazy" decoding="async">`
-      }
-    }
-    const excerpt = excerptText(p.excerpt)
-    items.push(`<article class="post-card">
-      <a class="post-thumb" href="${base}${p.path}/">${imgHtml}</a>
-      <div class="post-body">
-        <div class="post-meta"><span>${esc(fmtDate(p.date))}</span></div>
-        <h2 class="post-title"><a href="${base}${p.path}/">${esc(p.title)}</a></h2>
-        <div class="post-excerpt">${esc(excerpt)}</div>
-      </div>
-    </article>`)
-  }
-  const listHtml = items.join('') || `<p style="padding:20px;color:var(--text-light)">${lang==='en'?'No results found':'没有找到相关结果'}</p>`
+  const results = await queryAll(c,
+    'SELECT slug, title, excerpt, path, date, featured_media, translation_id FROM posts WHERE lang = ? AND status="publish" AND (title LIKE ? OR content LIKE ?) ORDER BY sticky DESC, date DESC LIMIT 20',
+    [lang, `%${q}%`, `%${q}%`])
+  const cards = await renderPostCards(c, lang, results)
+  const listHtml = cards || `<p style="padding:20px;color:var(--text-light)">${lang==='en'?'No results found':'没有找到相关结果'}</p>`
   const body = `<h1 class="page-title">${lang==='en'?'Search':'搜索'}: ${esc(q)}</h1>${listHtml}`
   const searchDesc = lang==='en'
     ? `Search results for “${q}” on VirtualCardx. Browse related virtual card reviews, payment guides, and practical tutorials.`
@@ -830,6 +922,8 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
     }))
     filtered = [...filtered, ...zhFallback]
   }
+  // 与首页一致：date 混存 ISO 与可读格式，统一在 JS 里按 sticky/日期重排
+  filtered.sort((a, b) => (b.sticky||0) - (a.sticky||0) || dateTs(b.date) - dateTs(a.date))
   // 分页: 每页 10 篇
   const perPage = 10
   const totalPages = Math.max(1, Math.ceil(filtered.length/perPage))
@@ -838,42 +932,9 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   // 分类 URL 前缀 (分页用)
   const catPath = childSlug ? `${parentSlug}/${childSlug}` : parentSlug
   const catUrl = `${base}${catPath}/`
-  // 渲染卡片式列表 (带特色图)
-  const items = []
-  for (const p of pageItems) {
-    let imgHtml = '<div class="no-img">💳</div>'
-    let fm = p.featured_media
-    if (lang === 'en' && !fm && p.translation_id) {
-      const zhRes = await c.env.DB.prepare(
-        'SELECT featured_media FROM posts WHERE lang = ? AND translation_id = ? AND featured_media IS NOT NULL AND featured_media != 0 LIMIT 1'
-      ).bind('zh', p.translation_id).all()
-      if (zhRes.results.length) fm = zhRes.results[0].featured_media
-    }
-    if (fm) {
-      const mRes = await c.env.DB.prepare('SELECT path, width, height FROM media WHERE id = ?').bind(fm).all()
-      if (mRes.results.length) {
-        const m = mRes.results[0]
-        imgHtml = `<img src="/${m.path}" alt="${esc(p.title)}"${m.width&&m.height?` width="${m.width}" height="${m.height}"`:''} loading="lazy" decoding="async">`
-      }
-    }
-    let catExcerpt = excerptText(p.excerpt)
-    // 英文无摘要: 回退中文配对摘要 (同特色图回退逻辑)
-    if (lang === 'en' && !catExcerpt && p.translation_id) {
-      const zhExRes = await c.env.DB.prepare(
-        'SELECT excerpt FROM posts WHERE lang = ? AND translation_id = ? AND excerpt IS NOT NULL AND excerpt != \'\' LIMIT 1'
-      ).bind('zh', p.translation_id).all()
-      if (zhExRes.results.length) catExcerpt = excerptText(zhExRes.results[0].excerpt)
-    }
-    items.push(`<article class="post-card">
-      <a class="post-thumb" href="${base}${p.path}/">${imgHtml}</a>
-      <div class="post-body">
-        <div class="post-meta"><span>${esc(fmtDate(p.date))}</span>${p.isZhFallback?'<span class="cat">'+(lang==='en'?'ZH':'中')+'</span>':''}</div>
-        <h2 class="post-title"><a href="${base}${p.path}/">${esc(p.title)}</a></h2>
-        ${catExcerpt?`<div class="post-excerpt">${esc(catExcerpt)}</div>`:''}
-      </div>
-    </article>`)
-  }
-  const listHtml = items.join('') || '<p style="padding:20px;color:var(--text-light)">No posts</p>'
+  // 渲染卡片式列表 (特色图/摘要/配对回退都在 renderPostCards 内批量处理)
+  const listHtml = (await renderPostCards(c, lang, pageItems, { showZhTag: true })) ||
+    '<p style="padding:20px;color:var(--text-light)">No posts</p>'
   // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? catUrl : `${catUrl}page/${p}/`
   const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
@@ -907,71 +968,35 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   return layout(lang, pageTitle, pageDesc, body, { noSidebar:true, path: canonicalPath, jsonld: categoryJsonld })
 }
 
+// 日期排序键。posts.date 混存 ISO 与 "November 21, 2025" 两种格式，
+// SQL 的字符串排序会把后者排到最前，所以统一在 JS 里解析。
+function dateTs(d) {
+  const s = String(d || '')
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return Date.parse(s.slice(0, 10))
+  return Date.parse(s) || 0
+}
+
 // 首页 + 分页
 async function renderHomePage(c, lang, page) {
   const base = baseOf(lang)
   const perPage = 10
   const offset = (page-1)*perPage
-  // 英文首页仅展示真实英文文章：日期格式文章，或有翻译配对的新版纯 slug 文章
-  let total = 0
-  let results = []
+  const COLS = 'slug, title, excerpt, path, date, featured_media, translation_id, sticky'
+  let results
   if (lang === 'en') {
+    // 英文首页仅展示真实英文文章：日期格式文章，或有翻译配对的新版纯 slug 文章
     const isRealArticle = (p) => /^\d{4}\/\d{2}\/\d{2}\//.test(p.path) || (!p.path.includes('/') && p.translation_id != null)
-    results = (await c.env.DB.prepare(
-      'SELECT slug, title, excerpt, path, date, featured_media, translation_id, sticky FROM posts WHERE lang = ? AND status = \'publish\' ORDER BY sticky DESC, date DESC'
-    ).bind('en').all()).results.filter(isRealArticle)
-    const ts = (d) => {
-      const s = String(d||'')
-      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return Date.parse(s.slice(0,10))
-      return Date.parse(s) || 0
-    }
-    results.sort((a,b) => (b.sticky||0) - (a.sticky||0) || ts(b.date) - ts(a.date))
-    total = results.length
+    results = (await queryAll(c, `SELECT ${COLS} FROM posts WHERE lang = ? AND status = 'publish'`, ['en']))
+      .filter(isRealArticle)
   } else {
-    const { results: totalRes } = await c.env.DB.prepare('SELECT COUNT(*) as n FROM posts WHERE lang = ? AND status = "publish"').bind(lang).all()
-    total = totalRes[0].n
-    const { results: r } = await c.env.DB.prepare(
-      'SELECT slug, title, excerpt, path, date, featured_media, translation_id, sticky FROM posts WHERE lang = ? AND status = "publish" ORDER BY sticky DESC, date DESC'
-    ).bind(lang).all()
-    results = r
+    results = await queryAll(c, `SELECT ${COLS} FROM posts WHERE lang = ? AND status = 'publish'`, [lang])
   }
+  results.sort((a, b) => (b.sticky||0) - (a.sticky||0) || dateTs(b.date) - dateTs(a.date))
+  const total = results.length
   const totalPages = Math.max(1, Math.ceil(total/perPage))
   if (page > totalPages) return null
   const pageItems = results.slice(offset, offset+perPage)
-  // 特色图: 查 media 表映射
-  const cards = []
-  for (const p of pageItems) {
-    let imgHtml = '<div class="no-img">💳</div>'
-    // 特色图: 优先用自身的, 英文文章通过翻译配对取中文特色图
-    let fm = p.featured_media
-    if (lang === 'en' && !fm && p.translation_id) {
-      const zhRes = await c.env.DB.prepare(
-        'SELECT featured_media FROM posts WHERE lang = ? AND translation_id = ? AND featured_media IS NOT NULL AND featured_media != 0 LIMIT 1'
-      ).bind('zh', p.translation_id).all()
-      if (zhRes.results.length) fm = zhRes.results[0].featured_media
-    }
-    if (fm) {
-      const mRes = await c.env.DB.prepare('SELECT path, width, height FROM media WHERE id = ?').bind(fm).all()
-      // 首页第 1 张卡片图: 不加 lazy, 加 fetchpriority=high (LCP 优化)
-      const isFirst = (page === 1 && cards.length === 0)
-      if (mRes.results.length) {
-        const m = mRes.results[0]
-        const dims = m.width&&m.height ? ` width="${m.width}" height="${m.height}"` : ''
-        imgHtml = isFirst
-          ? `<img src="/${m.path}" alt="${esc(p.title)}"${dims} fetchpriority="high" decoding="async">`
-          : `<img src="/${m.path}" alt="${esc(p.title)}"${dims} loading="lazy" decoding="async">`
-      }
-    }
-    const excerpt = excerptText(p.excerpt)
-    cards.push(`<article class="post-card">
-      <a class="post-thumb" href="${base}${p.path}/">${imgHtml}</a>
-      <div class="post-body">
-        <div class="post-meta"><span class="cat">${lang==='en'?'Review':'评测'}</span><span>${esc(fmtDate(p.date))}</span></div>
-        <h2 class="post-title"><a href="${base}${p.path}/">${esc(p.title)}</a></h2>
-        <div class="post-excerpt">${esc(excerpt)}</div>
-      </div>
-    </article>`)
-  }
+  const cards = await renderPostCards(c, lang, pageItems, { showCat: true, lcpFirst: page === 1 })
   // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? base : `${base}page/${p}/`
   const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
@@ -1002,7 +1027,7 @@ async function renderHomePage(c, lang, page) {
       { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'VirtualCardx', url: SITE+'/', logo: { '@type': 'ImageObject', url: `${SITE}/media/1556-cropped-logo.png`, width: 128, height: 45 } }
     ]
   } : undefined
-  const body = heroSection + cards.join('') + pagination
+  const body = heroSection + cards + pagination
   const pageTitle = page>1
     ? (lang==='en' ? `Latest Articles — Page ${page} - VirtualCardx` : `最新文章第 ${page} 页 - VirtualCardx`)
     : (lang==='en' ? 'VirtualCardx | Virtual Credit Card Reviews & Recommendations' : '虚拟信用卡平台推荐与评测 | VirtualCardx 60+平台实测')
@@ -1019,18 +1044,18 @@ async function renderHomePage(c, lang, page) {
 app.get('/page/:n', async (c) => {
   const lang = getLang(c.req.path)
   const page = parsePage(c.req.param('n'))
-  if (page === null) return c.notFound()
+  if (page === null) return notFoundHtml(c, lang)
   // /page/1/ -> 301 到首页 (消除重复内容)
   if (page === 1) return c.redirect(lang==='en' ? '/en/' : '/', 301)
   const html = await renderHomePage(c, lang, page)
-  return html ? c.html(html) : c.notFound()
+  return html ? c.html(html) : notFoundHtml(c, lang)
 })
 app.get('/en/page/:n', async (c) => {
   const page = parsePage(c.req.param('n'))
-  if (page === null) return c.notFound()
+  if (page === null) return notFoundHtml(c, 'en')
   if (page === 1) return c.redirect('/en/', 301)
   const html = await renderHomePage(c, 'en', page)
-  return html ? c.html(html) : c.notFound()
+  return html ? c.html(html) : notFoundHtml(c, 'en')
 })
 
 // /category/:slug 重定向
@@ -1038,7 +1063,7 @@ app.get('/category/:slug', async (c) => {
   const slug = c.req.param('slug')
   if (slug === 'virutal-credit-card') return c.redirect('/virtual-credit-card/', 301)
   const { results } = await c.env.DB.prepare('SELECT id FROM categories WHERE slug = ? AND parent = 0').bind(slug).all()
-  if (!results.length) return c.notFound()
+  if (!results.length) return notFoundHtml(c, 'zh')
   return c.redirect(`/${slug}/`, 301)
 })
 
@@ -1046,7 +1071,7 @@ app.get('/en/category/:slug', async (c) => {
   const slug = c.req.param('slug')
   if (slug === 'virutal-credit-card') return c.redirect('/en/virtual-credit-card/', 301)
   const { results } = await c.env.DB.prepare('SELECT id FROM categories WHERE slug = ? AND parent = 0').bind(slug).all()
-  if (!results.length) return c.notFound()
+  if (!results.length) return notFoundHtml(c, 'en')
   return c.redirect(`/en/${slug}/`, 301)
 })
 
@@ -1055,13 +1080,14 @@ app.get('/virutal-credit-card/:rest*', (c) => {
   const rest = c.req.path.replace('/virutal-credit-card','')
   // 汇总页/分页直接指到最终分类页 (单跳, 避免二次 301)
   if (rest.startsWith('/virtual-credit-card-platform-summary')) return c.redirect('/virtual-credit-card/', 301)
-  return c.redirect(`/virtual-credit-card${rest}`, 301)
+  // 空 rest 必须补尾斜杠, 否则会先跳到 /virtual-credit-card 再被尾斜杠规则 301 一次
+  return c.redirect(`/virtual-credit-card${rest || '/'}`, 301)
 })
 app.get('/virutal-credit-card', (c) => c.redirect('/virtual-credit-card/', 301))
 app.get('/en/virutal-credit-card/:rest*', (c) => {
   const rest = c.req.path.replace('/en/virutal-credit-card','')
   if (rest.startsWith('/virtual-credit-card-platform-summary')) return c.redirect('/en/virtual-credit-card/', 301)
-  return c.redirect(`/en/virtual-credit-card${rest}`, 301)
+  return c.redirect(`/en/virtual-credit-card${rest || '/'}`, 301)
 })
 app.get('/en/virutal-credit-card', (c) => c.redirect('/en/virtual-credit-card/', 301))
 app.get('/favicon.ico', (c) => c.redirect('/media/1556-cropped-logo.png', 301))
@@ -1107,10 +1133,9 @@ app.get('/llms.txt', async (c) => {
   lines.push('')
   lines.push('## 分类')
   lines.push('')
-  lines.push('- [虚拟卡评测](https://virtualcardx.com/virtual-credit-card/): 各平台实测评分')
-  lines.push('- [跨境支付与收款](https://virtualcardx.com/cross-border-collections/): 收款方案')
-  lines.push('- [SEO 与流量](https://virtualcardx.com/seo/): 独立站获客')
-  lines.push('- [免费资源](https://virtualcardx.com/resource-share/): 限时免费额度')
+  lines.push('- [虚拟卡评测](https://virtualcardx.com/virtual-credit-card/): 各平台实测评分、费率与风控')
+  lines.push('- [跨境支付与收款](https://virtualcardx.com/cross-border-collections/): 收款与结汇方案')
+  lines.push('- [加密货币](https://virtualcardx.com/cryptocurrency/): U 卡、稳定币充值、链上手续费')
   lines.push('')
   lines.push('## 最新文章(中文)')
   lines.push('')
@@ -1143,7 +1168,7 @@ function apiAuth(c) {
   const auth = c.req.header('Authorization') || ''
   const token = c.env.API_TOKEN || ''
   if (!token) return { ok: false, err: 'API_TOKEN not configured on worker' }
-  if (auth !== `Bearer ${token}`) return { ok: false, err: 'Unauthorized' }
+  if (!safeEqual(auth, `Bearer ${token}`)) return { ok: false, err: 'Unauthorized' }
   return { ok: true }
 }
 function apiJson(data, status=200) {
@@ -1214,12 +1239,12 @@ app.post('/api/posts', async (c) => {
   if (dup.results.length) return apiJson({ error: `Path already exists: ${path}`, existingId: dup.results[0].id }, 409)
   const date = body.date || new Date().toISOString().slice(0,10)
   const r = await c.env.DB.prepare(
-    'INSERT INTO posts (lang, slug, title, content, excerpt, path, date, modified, status, featured_media, category_ids, tag_ids, translation_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    'INSERT INTO posts (lang, slug, title, content, excerpt, path, date, modified, status, featured_media, category_ids, tag_ids, translation_id, sticky) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).bind(
     lang, slug, body.title, body.content||'', body.excerpt||'', path, date,
     new Date().toISOString(), body.status||'publish',
     body.featured_media||null, JSON.stringify(body.category_ids||[]), JSON.stringify(body.tag_ids||[]),
-    body.translation_id||null
+    body.translation_id||null, Number.isFinite(body.sticky) ? body.sticky : 0
   ).run()
   return apiJson({ ok: true, id: r.meta.last_row_id, path, slug, url: `/${path}/` }, 201)
 })
@@ -1237,7 +1262,7 @@ app.put('/api/posts/:id', async (c) => {
     const dup = await c.env.DB.prepare('SELECT id FROM posts WHERE path = ? AND lang = ? AND id != ?').bind(body.path, results[0].lang, id).all()
     if (dup.results.length) return apiJson({ error: `Path already exists: ${body.path}`, existingId: dup.results[0].id }, 409)
   }
-  const fields = ['title','content','excerpt','slug','path','date','status','featured_media','category_ids','tag_ids','translation_id']
+  const fields = ['title','content','excerpt','slug','path','date','status','featured_media','category_ids','tag_ids','translation_id','sticky']
   const sets = []; const params = []
   for (const f of fields) {
     if (body[f] !== undefined) {
@@ -1291,20 +1316,49 @@ app.get('/api/media', async (c) => {
   return apiJson({ media: results })
 })
 
+// 媒体 id 生成: 旧的 Date.now() % 1e8 每 27.8 小时循环一次，隔天上传撞主键并覆盖 R2 对象。
+// 毫秒时间戳 * 1000 + 3 位随机数，仍在 Number.MAX_SAFE_INTEGER (9e15) 之内。
+function newMediaId() {
+  return Date.now() * 1000 + Math.floor(Math.random() * 1000)
+}
+
 // POST /api/media — 上传媒体 (JSON: { filename, dataBase64, mimeType, alt?, width?, height? })
 app.post('/api/media', async (c) => {
   const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
   let body
   try { body = await c.req.json() } catch { return apiJson({ error: 'Invalid JSON' }, 400) }
   if (!body.filename || !body.dataBase64) return apiJson({ error: 'filename and dataBase64 required' }, 400)
-  const buf = Uint8Array.from(atob(body.dataBase64), ch => ch.charCodeAt(0))
-  const id = Date.now() % 100000000
-  const key = `media/${id}-${body.filename}`
-  await c.env.R2.put(key, buf, { httpMetadata: { contentType: body.mimeType || 'application/octet-stream' } })
+  if (typeof body.dataBase64 !== 'string' || body.dataBase64.length > 14_000_000) {
+    return apiJson({ error: 'File too large: max ~10MB (dataBase64)' }, 413)
+  }
+  const mime = String(body.mimeType || '')
+  if (mime && !/^image\//i.test(mime)) return apiJson({ error: 'Only image/* uploads are accepted' }, 415)
+  let buf
+  try { buf = Uint8Array.from(atob(body.dataBase64), ch => ch.charCodeAt(0)) }
+  catch { return apiJson({ error: 'dataBase64 is not valid base64' }, 400) }
+  // 去掉路径分隔符，避免 R2 key 逃出 media/ 前缀
+  const filename = String(body.filename).replace(/[\\/]+/g, '_').slice(0, 160)
+  const dim = (v) => (Number.isFinite(v) && v > 0 ? Math.round(v) : null)
+  // 先占 id (主键唯一约束保证不撞)，再写 R2；写 R2 失败则回滚 DB 记录，避免留下死链
+  let id = null
+  for (let attempt = 0; attempt < 5 && id === null; attempt++) {
+    const candidate = newMediaId()
+    try {
+      await c.env.DB.prepare('INSERT INTO media (id, filename, path, mime_type, alt, width, height) VALUES (?,?,?,?,?,?,?)')
+        .bind(candidate, filename, `media/${candidate}-${filename}`, mime, body.alt || '', dim(body.width), dim(body.height)).run()
+      id = candidate
+    } catch {
+      if (attempt === 4) return apiJson({ error: 'Could not allocate a unique media id' }, 500)
+    }
+  }
   // DB path 必须带 media/ 前缀: 渲染层 src="/${path}" 直接拼 URL (2026-08-16 修复)
-  const path = `media/${id}-${body.filename}`
-  const r = await c.env.DB.prepare('INSERT INTO media (id, filename, path, mime_type, alt, width, height) VALUES (?,?,?,?,?,?,?)')
-    .bind(id, body.filename, path, body.mimeType||'', body.alt||'', body.width||null, body.height||null).run()
+  const path = `media/${id}-${filename}`
+  try {
+    await c.env.R2.put(path, buf, { httpMetadata: { contentType: mime || 'application/octet-stream' } })
+  } catch (e) {
+    await c.env.DB.prepare('DELETE FROM media WHERE id = ?').bind(id).run().catch(() => {})
+    return apiJson({ error: 'R2 upload failed: ' + (e && e.message ? e.message : 'unknown') }, 502)
+  }
   return apiJson({ ok: true, id, path, url: `/${path}` }, 201)
 })
 
@@ -1527,9 +1581,8 @@ const OLD_CAT_REDIRECTS = [
   ['/experience-sharing/foreign-trade-customer-acquisition', '/social-media'],
 ]
 
-export default app
-
-// 兜底路由
+// 兜底路由 (catch-all)。必须最后注册；export default 统一放在文件末尾，
+// 避免"先导出、后注册"这种靠模块求值顺序兜着的隐式依赖。
 app.get('*', async (c) => {
   try {
   // 文章 slug 后误拼的 /null（旧模板遗留，bingbot 反复抓）→ 先于文章正则处理
@@ -1570,7 +1623,7 @@ app.get('*', async (c) => {
   // 首页
   if (postPath === '' || postPath === 'en') {
     const html = await renderHomePage(c, lang, 1)
-    return html ? c.html(html) : c.notFound()
+    return html ? c.html(html) : notFoundHtml(c, lang)
   }
 
   // 页面 (按语言查询: /en/about/ 返回英文页面, /about/ 返回中文页面)
@@ -1602,7 +1655,7 @@ app.get('*', async (c) => {
     let catParts = parts
     if (parts.length >= 3 && parts[parts.length-2] === 'page') {
       const parsed = parsePage(parts[parts.length-1])
-      if (parsed === null) return c.notFound()
+      if (parsed === null) return notFoundHtml(c, lang)
       page = parsed
       catParts = parts.slice(0, parts.length-2)
     }
@@ -1757,13 +1810,22 @@ app.get('*', async (c) => {
   }
 
   // 404
-  return c.html(layout(lang, '404 Not Found - VirtualCardx', 'Page not found', `
-    <div class="notfound">
-      <div class="code">404</div>
-      <h1>${lang==='en'?'Page not found':'页面不存在'}</h1>
-      <p><a href="${baseOf(lang)}">${lang==='en'?'← Back to home':'← 返回首页'}</a></p>
-    </div>`, { noSidebar:true, omitCanonical:true }), 404)
+  return notFoundHtml(c, lang)
   } catch (e) {
-    return c.text('ERROR: ' + e.message + '\n' + (e.stack||'').split('\n').slice(0,5).join('\n'))
+    // 旧实现直接把 e.message + stack 当正文吐给访客且状态码 200 —— 信息泄露 + 被搜索引擎当内容抓。
+    console.error('VCX worker error:', e && (e.stack || e.message))
+    try {
+      const errLang = getLang(new URL(c.req.url).pathname)
+      return c.html(layout(errLang, '500 Internal Server Error - VirtualCardx', 'Service temporarily unavailable', `
+    <div class="notfound">
+      <div class="code">500</div>
+      <h1>${errLang==='en'?'Something went wrong':'页面暂时无法加载'}</h1>
+      <p><a href="${baseOf(errLang)}">${errLang==='en'?'← Back to home':'← 返回首页'}</a></p>
+    </div>`, { noSidebar:true, noindex:true, omitCanonical:true }), 500)
+    } catch {
+      return c.text('Internal Server Error', 500)
+    }
   }
 })
+
+export default app

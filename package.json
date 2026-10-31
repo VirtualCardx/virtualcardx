@@ -1,10 +1,12 @@
 {
   "name": "vcx_worker",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.1.0",
+  "description": "virtualcardx.com Cloudflare Worker (Hono + D1 + R2)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/worker.test.mjs tests/schema.test.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "keywords": [],
   "author": "",
