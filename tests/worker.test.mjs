@@ -154,8 +154,30 @@ test('首页卡片查询次数与文章数量无关（N+1 回归）', async () =
     ],
   })
   await fetchPath(many.env, many.ctx, '/')
-  assert.equal(many.log.sql.length, fewCount, '一页 10 篇不应比 4 篇多出查询')
+  assert.equal(many.log.sql.length, fewCount, '一页 9 篇不应比 4 篇多出查询')
   assert.ok(fewCount <= 5, `首页查询应 <= 5 次，实际 ${fewCount}`)
+})
+
+test('每页 9 条，正好排满三列网格', async () => {
+  // 11 篇中文：第一页 9 条（三整行），第二页剩 2 条（补 1 个占位格）
+  const posts = [
+    ...basePosts.filter(p => p.lang === 'zh'),
+    ...Array.from({ length: 7 }, (_, i) => ({
+      id: 300 + i, lang: 'zh', slug: `paged-${i}`, title: `翻页文章 ${i}`, excerpt: '摘要',
+      content: '<p>x</p>', path: `paged-${i}`, date: `2026-07-0${i + 1}`, modified: '2026-07-01',
+      status: 'publish', featured_media: null, category_ids: '[7]', tag_ids: '[]', translation_id: null, sticky: 0,
+    })),
+  ]
+  const { env, ctx } = fresh({ posts })
+  const p1 = await (await fetchPath(env, ctx, '/')).text()
+  assert.equal((p1.match(/class="cell"/g) || []).length, 9, '首页第一页应有 9 条')
+  assert.equal((p1.match(/class="cell cell-empty"/g) || []).length, 0, '9 条正好三整行，不该补占位格')
+  assert.ok(!p1.includes('/crypto-card-guide/'), '第 10 条之后不应出现在第一页')
+
+  const p2 = await (await fetchPath(env, ctx, '/page/2/')).text()
+  assert.equal((p2.match(/class="cell"/g) || []).length, 2, '第二页应为剩下的 2 条')
+  assert.equal((p2.match(/class="cell cell-empty"/g) || []).length, 1, '末页 2 条应补 1 个占位格')
+  assert.ok(p2.includes('/crypto-card-guide/'), '溢出的文章应落到第二页')
 })
 
 test('分类页 200 且分页导航存在', async () => {

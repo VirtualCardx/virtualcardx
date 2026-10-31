@@ -200,6 +200,11 @@ app.use('*', async (c, next) => {
 })
 const SITE = 'https://virtualcardx.com'
 
+// 列表每页条数。9 = 桌面三列网格正好三整行，末行不留缺口；
+// 2 列（平板）和 1 列（手机）下最后一行靠 .grid 的收口线处理。
+// 首页、分类页共用这一个数，别再各写一份。
+const PER_PAGE = 9
+
 // ============ 共享 CSS ============
 const CSS = `
 /* ===== 字体：拉丁用自托管 IBM Plex，中文走系统黑体栈 ===== */
@@ -309,10 +314,11 @@ html[lang="zh"] .hero-title{line-height:1.2}
 html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-weight:600;letter-spacing:0}
 .section-head .count{font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 
-/* ===== 列表：共享细线网格。容器 border-left，格子自己 border-right+bottom。
-   不满的末行补空单元格（.cell-empty），否则最后一行会缺一块边框，看着像没画完 ===== */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
-/* 占位格只在网格排成 3 列（内容宽 >= 888px）时才需要：此时每页 10 条会剩 2 格。
+/* ===== 列表：共享细线网格。容器 border-top+left，格子自己 border-right+bottom。
+   末行不满时补空单元格（.cell-empty）收口；占位格隐藏的 1/2 列宽度下，
+   网格自身用一条 inset 底线把最后一行封住（和格子的底线落在同一像素） ===== */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));border-top:1px solid var(--rule);border-left:1px solid var(--rule);box-shadow:inset 0 -1px 0 var(--rule)}
+/* 占位格只在网格排成 3 列（内容宽 >= 888px）时才需要。
    用两个类压过 .cell 的 display:flex —— 单类同权重，后定义的那个会赢 */
 .cell.cell-empty{display:none;pointer-events:none}
 @media(min-width:920px){.cell.cell-empty{display:flex}}
@@ -332,14 +338,15 @@ html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-wei
 /* 「中文原文」这类旁注：靠一条竖线与时长分开，否则两个词会连成一句话 */
 .tag{margin-left:8px;padding-left:8px;border-left:1px solid var(--rule);color:var(--ink-2)}
 
-/* 分页：等宽数字，细线分隔，当前页用最深填充 */
-.pagination{display:flex;align-items:stretch;flex-wrap:wrap;margin-top:24px;border-top:1px solid var(--rule)}
+/* 分页：等宽数字，细线分隔，当前页用最深填充。
+   上下的横线要跨满整条，右侧页码计数才不像孤立的一条下划线 */
+.pagination{display:flex;align-items:stretch;flex-wrap:wrap;margin-top:24px;border-top:1px solid var(--rule);box-shadow:inset 0 -1px 0 var(--rule)}
 .pagination a,.pagination .cur,.pagination .dots,.pagination .disabled{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 8px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
 .pagination a:hover{background:var(--surface);color:var(--ink);text-decoration:none}
 .pagination .cur{background:var(--fill);color:#fff}
 .pagination .dots{color:var(--ink-2);min-width:20px}
 .pagination .disabled{color:var(--ink-2)}
-.pagination .page-info{margin-left:auto;padding-left:16px;display:inline-flex;align-items:center;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
+.pagination .page-info{margin-left:auto;padding-left:16px;display:inline-flex;align-items:center;font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
 
 /* ===== 侧栏 ===== */
 /* 侧栏吸顶位置 = 页头 64 + 分类条 36 + 4 的呼吸位，低一点会被页头压住 */
@@ -474,6 +481,9 @@ html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-sp
   .menu-toggle{display:flex}
   .cat-bar-inner{gap:18px;padding:0 16px}
   .page-title{font-size:1.4rem}
+  /* 页码 + 「1 / 15」在 358px 里放不下，会被挤到第二行、只留一条孤线。
+     页码里已经有末页数字，这里直接省掉计数 */
+  .pagination .page-info{display:none}
   .cell{padding:20px 18px}
   .site-footer{margin-top:44px;padding:30px 0 24px}
   .footer-inner{padding:0 16px;gap:26px}
@@ -930,9 +940,9 @@ async function renderPostCards(c, lang, posts, opts = {}) {
   }).join('')
 }
 
-// 列表网格的外壳。末行不满时补空单元格，让表格线收口。
-// 只在 3 列的宽度下显示这些占位格（见 .cell-empty 的媒体查询）：2 列和 1 列时
-// 每页 10 条本来就排得整，补上反而多出一整行空白。
+// 列表网格的外壳。每页 9 条时前几页正好排满三行，只有末页会不满，
+// 补几个空单元格让表格线收口。占位格只在 3 列宽度下显示（见 .cell-empty）：
+// 1/2 列时它们会撑出一整行空白，那两档由 .grid 自身的底部收口线兜住。
 function gridBlock(cards, count) {
   if (!cards) return ''
   const pad = (3 - (count % 3)) % 3
@@ -1056,8 +1066,8 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   }
   // 与首页一致：date 混存 ISO 与可读格式，统一在 JS 里按 sticky/日期重排
   filtered.sort((a, b) => (b.sticky||0) - (a.sticky||0) || dateTs(b.date) - dateTs(a.date))
-  // 分页: 每页 10 篇
-  const perPage = 10
+  // 分页: 每页 PER_PAGE 篇，与网格列数对齐
+  const perPage = PER_PAGE
   const totalPages = Math.max(1, Math.ceil(filtered.length/perPage))
   if (page > totalPages) return null
   const pageItems = filtered.slice((page-1)*perPage, page*perPage)
@@ -1115,7 +1125,7 @@ function dateTs(d) {
 // 首页 + 分页
 async function renderHomePage(c, lang, page) {
   const base = baseOf(lang)
-  const perPage = 10
+  const perPage = PER_PAGE
   const offset = (page-1)*perPage
   const COLS = 'slug, title, excerpt, path, date, category_ids, translation_id, sticky, length(content) AS body_len'
   let results
