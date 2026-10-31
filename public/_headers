@@ -1,3 +1,13 @@
 # 字体是内容寻址的静态资源：文件名一变就是新文件，可以放心 immutable。
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+
+# 图标与分享图文件名固定，改版时同名替换，所以只给一周，不做 immutable。
+/brand/*
+  Cache-Control: public, max-age=604800
+
+/favicon.ico
+  Cache-Control: public, max-age=604800
+
+/favicon.svg
+  Cache-Control: public, max-age=604800

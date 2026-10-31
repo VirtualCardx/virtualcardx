@@ -205,6 +205,13 @@ const SITE = 'https://virtualcardx.com'
 // 首页、分类页共用这一个数，别再各写一份。
 const PER_PAGE = 9
 
+// 品牌标记 = 一张卡的几何：卡面、磁条、芯片。没有渐变、没有圆角糖、没有字母缩写的花活，
+// 和全站的细线网格同一套语汇。
+// 页头用线稿（卡框 1.5px，与页头分隔线同笔重）；favicon 用同一套比例的反白砖块
+// （public/favicon.svg）——16px 下线稿会糊成一团，实心块才认得出是张卡。
+// 改比例时两处一起改，否则页头和标签页会变成两个不同的标记。
+const MARK = `<svg class="logo-mark" width="26" height="18" viewBox="0 0 26 18" aria-hidden="true" focusable="false"><rect class="mk-frame" x="1" y="1" width="24" height="16" rx="1.5"/><rect class="mk-band" x="1.75" y="6" width="22.5" height="3.5"/><rect class="mk-chip" x="4.5" y="11.5" width="5" height="3"/></svg>`
+
 // ============ 共享 CSS ============
 const CSS = `
 /* ===== 字体：拉丁用自托管 IBM Plex，中文走系统黑体栈 ===== */
@@ -251,9 +258,13 @@ html[lang="zh"] .label{letter-spacing:.06em}
 /* ===== 页头 ===== */
 .site-header{border-bottom:1px solid var(--rule);background:var(--paper);position:sticky;top:0;z-index:100}
 .header-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:64px;display:flex;align-items:center;gap:30px}
-.logo{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.logo{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.012em}
 .logo:hover{color:var(--ink);text-decoration:none}
-.logo-img{height:22px;width:auto}
+/* 标记与全站细线同一笔重（1.5px）。用 currentColor 跟着 .logo 走 */
+.logo-mark{display:block;flex:none}
+.mk-frame{fill:none;stroke:currentColor;stroke-width:1.5}
+.mk-band{fill:currentColor}
+.mk-chip{fill:var(--signal)}
 .main-nav{display:flex;align-items:center;gap:26px;margin-right:auto}
 .main-nav a{font-size:13px;color:var(--ink-2)}
 .main-nav a:hover{color:var(--ink);text-decoration:none}
@@ -666,6 +677,10 @@ function layout(lang, title, desc, body, opts={}) {
   const searchPlaceholder = lang==='en' ? 'Search...' : '搜索文章...'
   const homeLabel = lang==='en' ? 'Home' : '首页'
   const canonical = opts.canonical || (base + (opts.path||''))
+  // 文章自带配图时用它，否则用站点的 1200x630 品牌卡。
+  // twitter:card 的归属也在这里判断：文章自己声明过就别再插一条，否则同页两个值打架。
+  const ownImage = (opts.extraHead||'').includes('og:image')
+  const ownTwitterCard = (opts.extraHead||'').includes('twitter:card')
   const seoHead = opts.omitCanonical ? '' : `
 <link rel="canonical" href="${SITE}${canonical}">
 <link rel="alternate" hreflang="${lang==='en'?'zh':'en'}" href="${SITE}${altHref}">
@@ -698,7 +713,10 @@ function layout(lang, title, desc, body, opts={}) {
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 ${opts.noindex ? '<meta name="robots" content="noindex,follow">' : ''}
-<link rel="icon" type="image/png" href="/media/1556-cropped-logo.png">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<meta name="theme-color" content="#111820">
 <link rel="preload" href="/fonts/ibm-plex-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 ${seoHead}
 <meta property="og:type" content="${opts.ogType||'website'}">
@@ -706,8 +724,8 @@ ${seoHead}
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:locale" content="${lang==='en'?'en_US':'zh_CN'}">
-${(opts.extraHead||'').includes('og:image') ? '' : `<meta property="og:image" content="${SITE}/media/1556-cropped-logo.png"><meta property="og:image:alt" content="VirtualCardx">`}
-<meta name="twitter:card" content="summary">
+${ownImage ? '' : `<meta property="og:image" content="${SITE}/brand/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="VirtualCardx">`}
+${ownTwitterCard ? '' : `<meta name="twitter:card" content="${ownImage ? 'summary' : 'summary_large_image'}">`}
 ${opts.jsonld ? `<script type="application/ld+json">${JSON.stringify(opts.jsonld).replace(/</g, '\\u003c')}</script>` : ''}
 ${opts.extraHead||''}
 <style>${CSS}</style>
@@ -715,7 +733,7 @@ ${opts.extraHead||''}
 <body>
 <header class="site-header">
   <div class="header-inner">
-    <a class="logo" href="${base}"><img class="logo-img" src="/media/1556-cropped-logo.png" alt="VirtualCardx" width="128" height="45"> VirtualCardx</a>
+    <a class="logo" href="${base}">${MARK}VirtualCardx</a>
     <nav class="main-nav" id="mainNav">
       <form class="search-box nav-search" action="${base}" method="get" role="search">
         <input type="search" name="s" placeholder="${searchPlaceholder}" aria-label="${searchPlaceholder}">
@@ -1195,7 +1213,7 @@ async function renderHomePage(c, lang, page) {
         publisher: { '@id': `${SITE}/#organization` },
         potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${siteUrl}?s={search_term_string}` }, 'query-input': 'required name=search_term_string' }
       },
-      { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'VirtualCardx', url: SITE+'/', logo: { '@type': 'ImageObject', url: `${SITE}/media/1556-cropped-logo.png`, width: 128, height: 45 } }
+      { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'VirtualCardx', url: SITE+'/', logo: { '@type': 'ImageObject', url: `${SITE}/brand/icon-512.png`, width: 512, height: 512 } }
     ]
   } : undefined
   const body = heroSection + sectionHead + gridBlock(cards, pageItems.length) + pagination
@@ -1261,7 +1279,7 @@ app.get('/en/virutal-credit-card/:rest*', (c) => {
   return c.redirect(`/en/virtual-credit-card${rest || '/'}`, 301)
 })
 app.get('/en/virutal-credit-card', (c) => c.redirect('/en/virtual-credit-card/', 301))
-app.get('/favicon.ico', (c) => c.redirect('/media/1556-cropped-logo.png', 301))
+// /favicon.ico 与其他图标走 public/ 静态资源（Assets 在 Worker 之前响应），这里不再重定向。
 
 // sitemap（只收录最终规范 200 URL；旧路径/已合并分类由 301 承接，不能留在 sitemap）
 app.get('/sitemap.xml', async (c) => {
@@ -2004,7 +2022,7 @@ app.get('*', async (c) => {
             image:articleImage ? [articleImage] : undefined,
             datePublished:publishedDate, dateModified:modifiedDate, inLanguage:lang==='en'?'en':'zh-CN',
             author:{'@type':'Person',name:'Kenneth Lau',url:`${SITE}${base}about/`,'sameAs':['https://www.linkedin.com/in/kenneth-lau-77a551379','https://www.linkedin.com/company/virtualcardx']},
-            publisher:{'@type':'Organization','@id':`${SITE}/#organization`,name:'VirtualCardx',logo:{'@type':'ImageObject',url:`${SITE}/media/1556-cropped-logo.png`,width:128,height:45}},
+            publisher:{'@type':'Organization','@id':`${SITE}/#organization`,name:'VirtualCardx',logo:{'@type':'ImageObject',url:`${SITE}/brand/icon-512.png`,width:512,height:512}},
             mainEntityOfPage:{'@id':`${articleUrl}#webpage`}, isPartOf:{'@id':`${SITE}${base}#website`} },
           { '@type':'WebPage', '@id':`${articleUrl}#webpage`, url:articleUrl, name:p.title, inLanguage:lang==='en'?'en':'zh-CN', mainEntity:{'@id':`${articleUrl}#article`} },
           { '@type':'BreadcrumbList', itemListElement:[

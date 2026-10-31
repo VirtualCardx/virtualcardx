@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="VirtualCardx">
+  <!-- 与 index.js 里的 MARK 同一套比例：卡面 24x16、磁条距卡顶 5、厚 3.5、芯片 5x3。
+       线稿在 16px 会糊，这里反白成实心砖块。改比例时两处一起改。 -->
+  <rect width="32" height="32" rx="2" fill="#111820"/>
+  <rect x="4" y="8" width="24" height="16" fill="#ffffff"/>
+  <rect x="4" y="13" width="24" height="3.5" fill="#111820"/>
+  <rect x="7.5" y="18.5" width="5" height="3" fill="#0f4c81"/>
+</svg>

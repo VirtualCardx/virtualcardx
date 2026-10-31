@@ -53,6 +53,37 @@ test('静态资源与 API 不被尾斜杠规则改写', async () => {
   }
 })
 
+test('页头用内联标记，图标指向站点自己的资源', async () => {
+  const { env, ctx } = fresh()
+  const html = await (await fetchPath(env, ctx, '/')).text()
+
+  assert.ok(html.includes('<svg class="logo-mark"'), '页头标记应内联，避免一次图片请求')
+  assert.ok(html.includes('class="mk-chip"'), '标记由卡框/磁条/芯片三层组成')
+  assert.ok(!html.includes('1556-cropped-logo'), '不应再引用 WP 时代的位图 logo')
+
+  // 三种图标都要声明：ico 给老浏览器和爬虫，svg 给现代浏览器，apple-touch-icon 给 iOS 主屏
+  assert.ok(html.includes('href="/favicon.ico"'), '缺 favicon.ico')
+  assert.ok(html.includes('href="/favicon.svg"'), '缺 favicon.svg')
+  assert.ok(html.includes('href="/brand/apple-touch-icon.png"'), '缺 apple-touch-icon')
+  assert.ok(!html.includes('rel="icon" type="image/png" href="/media/'), '图标签不能回落到媒体桶')
+})
+
+test('og:image 默认是 1200x630 品牌卡，带自备图时不覆盖', async () => {
+  const { env, ctx } = fresh()
+  const home = await (await fetchPath(env, ctx, '/')).text()
+  assert.ok(home.includes('content="https://virtualcardx.com/brand/og.png"'), '首页应回落到品牌卡')
+  assert.ok(home.includes('og:image:width" content="1200"'), '要声明宽度，社交平台才不会裁歪')
+  assert.ok(home.includes('twitter:card" content="summary_large_image"'), '品牌卡是横版，走大图卡片')
+
+  // 有特色图的文章自带 og:image，不能既保留自带图又声明 1200x630
+  const post = await (await fetchPath(env, ctx, '/virtual-credit-card-platform-review/')).text()
+  const ogImages = post.match(/property="og:image"/g) || []
+  assert.equal(ogImages.length, 1, '页面只能有一个 og:image')
+  assert.ok(!post.includes('brand/og.png'), '自带配图时不应再挂品牌卡')
+  const cards = post.match(/name="twitter:card"/g) || []
+  assert.equal(cards.length, 1, 'twitter:card 不能既由布局写一条、又由文章写一条')
+})
+
 test('旧 WP query 参数 301 到干净路径', async () => {
   const { env, ctx } = fresh()
   const res = await fetchPath(env, ctx, '/?query-27a53e09-page=2')
