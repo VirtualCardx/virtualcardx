@@ -7,109 +7,106 @@ virtualcardx.com 的 Cloudflare Workers 源码（Hono + D1 `vcx-db` + R2 `vcx-me
 
 | 文件 | 说明 |
 |---|---|
-| `index.js` | Worker 源码（wrangler 直接打包入口，无需手动 esbuild） |
-| `meta-desc.js` | 静态页 / 分类页的 meta description 文案（DB 里没有 description 列） |
-| `db/schema.sql` | D1 表结构（posts / categories / tags / pages / media + 索引） |
-| `db/migrations/` | 生产库增量迁移（已有库补列 / 补索引） |
-| `wrangler.toml` | Cloudflare 配置（D1/R2 绑定、account_id、`assets` 静态目录） |
-| `public/` | 自托管 IBM Plex（Sans 可变字重 + Mono 400/500/600 woff2）、站点图标与 `_headers`，经 Workers Assets 提供 |
-| `public/brand/` | 品牌位图：`apple-touch-icon.png`（180）、`icon-512.png`（结构化数据里的 logo）、`og.png`（1200×630 分享卡） |
-| `public/favicon.svg` | 图标源文件。页头标记是 `index.js` 里的 `MARK`，两者比例必须一致 |
-| `deploy_vcx.sh` | Cloudflare API 部署脚本 |
-| `tests/` | `node:test` 回归套件（路由 / SEO / 404 / API / 查询数 / schema 一致性） |
+| `index.js` | Worker 入口：路由、SSR、缓存、安全头、管理 API |
+| `meta-desc.js` | 静态页 / 分类页的 meta description 文案 |
+| `db/schema.sql` | 完整 D1 结构：表、索引、时间戳/分类/FTS 触发器 |
+| `db/migrate.mjs` | 可重复执行的迁移入口（preflight → 补列 → schema → 回填） |
+| `db/migrations/` | 查询索引与历史结构迁移 |
+| `wrangler.toml` | D1/R2、Assets、Rate Limiting、observability |
+| `public/app.js` | 移动菜单交互（外链脚本，CSP 不允许内联） |
+| `public/fonts/` | 自托管 IBM Plex；文件名带内容哈希 |
+| `public/brand/` | `og.png` / `og-en.png`、应用图标 |
+| `tests/` | 真实 SQLite D1 回归测试（61 项，无网络依赖） |
+| `deploy_vcx.sh` | 先跑测试，再调用固定版本的本地 wrangler 部署 |
 
 ## 开发
 
 ```bash
-npm install            # hono + wrangler(devDependencies 精确锁定 4.156.0)
-npm test               # 跑回归套件（无需联网、无需 wrangler）
-npm run dev            # 本地跑；需 CLOUDFLARE_API_TOKEN（见下）
-./deploy_vcx.sh        # 部署;需 CLOUDFLARE_API_TOKEN 环境变量
+npm ci                 # 按 package-lock.json 安装
+npm test               # 61 项回归（真实 SQLite + schema 一致性）
+npm run dev            # 本地；需 CLOUDFLARE_API_TOKEN（R2 remote）
+./deploy_vcx.sh        # 先测试，再部署；需 CLOUDFLARE_API_TOKEN
 ```
 
-wrangler 版本在 `package.json` 里写死（不带 `^`），`deploy_vcx.sh` 走
-`node_modules/.bin/wrangler` 而不是 `npx wrangler`，避免不同机器拉到不同大版本。
+wrangler 精确锁定 `4.156.0`，部署脚本只使用 `node_modules/.bin/wrangler`。
 
 ### 本地跑真实数据
 
-D1 和 R2 的本地模拟是空的。有内容的本地站要先把线上库拉一份下来：
-
 ```bash
-# 1. 导出线上 D1（3.8MB 左右，导期间库会短暂只读）
 ./node_modules/.bin/wrangler d1 export vcx-db --remote --output=.local-db/vcx-dump.sql
-
-# 2. 灌进本地 D1（.wrangler/state 内的模拟库，可反复重灌）
 ./node_modules/.bin/wrangler d1 execute vcx-db --local --file=.local-db/vcx-dump.sql
+node db/migrate.mjs --local
+npm run dev
 ```
 
-之后 `npm run dev` 就是 D1 走本地副本、R2 走线上桶。
-`wrangler.toml` 里给 R2 加了 `remote = true`，只影响 `dev`、`deploy` 会忽略它；
-不这么配的话本地 R2 为空，缩略图会全部 404。
+`wrangler.toml` 中 R2 的 `remote = true` 只影响 `dev`，部署时忽略。
+`wrangler dev --local` 会覆盖单项 remote 配置，导致图片全部 404。
+本地 HTML 边缘缓存保存在 `.wrangler/state/v3/cache`，改模板后旧页面不刷新时可删除该目录（不要删 `v3/d1`）。
 
-注意 **`--local` 参数会覆盖单项的 `remote = true`**，加了这个 flag 就等于全本地、
-图片必然 404。要在完全离线、不碰线上的情况下调样式，才用它：
+## D1 迁移
 
-```bash
-npm run dev -- --local
-```
-
-`CLOUDFLARE_API_TOKEN` 只在 R2 走线上时需要，且它能让 `dev` 读到生产桶 ——
-别拿它跑不受信任的代码。
-
-## D1 初始化与迁移
-
-新环境：
+新环境直接执行 schema：
 
 ```bash
-npx wrangler d1 create vcx-db
 npx wrangler d1 execute vcx-db --remote --file db/schema.sql
 ```
 
-已存在的库（补索引）：
+已有库统一走：
 
 ```bash
-# 先确认 sticky 是否已在（生产库 2026-08 已手工加过）
-npx wrangler d1 execute vcx-db --remote --command "PRAGMA table_info(posts)"
+node db/migrate.mjs --local
+node db/migrate.mjs --remote
 ```
 
-`ALTER TABLE ... ADD COLUMN` 在列已存在时会报 duplicate column 并中断整个文件，
-所以**列已存在就不要跑 --file**，只执行索引部分：
+迁移会先检查 posts/pages/categories 的重复规范键，然后：
+- 条件补 `sticky`、`date_ts`、`modified_ts`，重复执行不会因 duplicate column 中断；
+- 执行幂等 schema；
+- 回填可读日期时间戳、`post_categories` 与 FTS 索引；
+- 删除被复合索引覆盖的旧单列索引。
 
-```bash
-npx wrangler d1 execute vcx-db --remote --command "\
-CREATE INDEX IF NOT EXISTS idx_posts_lang_status ON posts(lang, status);\
-CREATE INDEX IF NOT EXISTS idx_posts_path_lang ON posts(path, lang);\
-CREATE INDEX IF NOT EXISTS idx_pages_slug_lang ON pages(slug, lang);\
-CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug);\
-CREATE INDEX IF NOT EXISTS idx_media_filename ON media(filename);\
-CREATE INDEX IF NOT EXISTS idx_media_path ON media(path);"
-```
-
-> `tests/schema.test.mjs` 会校验“代码里查询的列”都在 `db/schema.sql` 里，
-> 以后再出现 `sticky` 那种只存在于生产库的列，测试会直接失败。
+`posts.date` / `modified` 保留原值，`date_ts` / `modified_ts` 由触发器维护并用于排序。
+`post_categories`、`posts_fts` 同样由触发器同步，外部写入不会绕过。
 
 ## 请求处理顺序
 
 1. `www.` → 裸域 301
-2. 旧 WP 的 `query-xxx` 参数 → 干净路径 301
-3. `BLOG_MOVED`：已迁往 blog.andou.eu.org 的文章 → 301 单跳
-4. 尾斜杠规范化（只对路由文档，跳过 `/api/`、`/media/` 与带扩展名的路径）
-5. Edge Cache：仅缓存无 query、无 cookie 的公开 GET HTML，命中 30 分钟
-6. 安全响应头（CSP / nosniff / X-Frame-Options / Permissions-Policy）
-7. 显式路由，最后是 catch-all（pages → 分类 → 文章 → 旧 URL 301 → 404）
+2. 旧 WP `query-xxx` 参数 → 干净路径 301
+3. `BLOG_MOVED` → 外部博客 301
+4. 尾斜杠规范化（跳过 `/api/`、`/media/`、扩展名路径）
+5. Rate Limiting（搜索与写 API）
+6. Worker Edge Cache：仅缓存无 query / 无 cookie 的公开 GET HTML，最长 5 分钟
+7. 安全响应头（CSP、nosniff、frame、Permissions-Policy）
+8. 显式路由与 catch-all；未知日期型 URL 返回真 404
+
+## 缓存契约
+
+HTML 使用 `CDN-Cache-Control: max-age=300`。写 `/api/posts` 后，Worker 会清理当前 PoP 的：
+- 中英文首页；
+- 文章旧 URL / 新 URL；
+- 对应规范文章页。
+
+分页与分类的旧 HTML 最长 5 分钟后自然过期。**全边缘精准 purge 仍应由 Cloudflare Zone Cache Purge 或发布客户端完成**；仓库不保存 Zone purge 凭据。
 
 ## 管理 API
 
-`/api/*` 使用 `Authorization: Bearer <API_TOKEN>`（secret `API_TOKEN`，密钥不在仓库中）。
+`/api/*` 使用 `Authorization: Bearer <API_TOKEN>`（secret `API_TOKEN`）。
+除 `/api/health` 外，按 IP 限制 60 次/分钟（Cloudflare Rate Limiting binding）。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/health` | 健康检查（公开） |
-| GET | `/api/posts` | 列表，支持 `lang` / `status` / `q` / `limit` / `offset` |
-| GET/POST/PUT/DELETE | `/api/posts[/:id]` | 单篇 CRUD，`path` 冲突返回 409 |
-| GET/POST | `/api/categories` | 分类 |
-| GET/POST | `/api/media` | 上传（JSON + base64，仅 `image/*`，上限约 10MB） |
+| GET | `/api/health` | D1/R2 健康检查，匿名响应不泄露内部异常 |
+| GET | `/api/posts` | `lang` / `status` / `q` / `limit(1-100)` / `offset>=0` |
+| GET/POST/PUT/DELETE | `/api/posts[/:id]` | CRUD；path 冲突由数据库唯一约束兜底 |
+| GET/POST | `/api/categories` | 分类；slug 唯一 |
+| GET/POST | `/api/media` | PNG/JPEG/WebP/GIF，魔数校验，约 10MB |
 | GET | `/api/tags` `/api/pages` | 标签 / 静态页 |
+
+## 发现端点
+
+- `/sitemap.xml`：只列数据库真实存在的页面、分类和文章
+- `/feed.xml`、`/en/feed.xml`：双语 RSS
+- `/robots.txt`、`/llms.txt`
+- `/virtualcardx2026.txt`：IndexNow 验证
 
 ## 站点
 

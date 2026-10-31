@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test tests/worker.test.mjs tests/schema.test.mjs",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "npm test && wrangler deploy",
+    "db:migrate": "node db/migrate.mjs"
   },
   "keywords": [],
   "author": "",

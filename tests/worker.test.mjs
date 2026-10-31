@@ -9,9 +9,11 @@ async function fetchPath(env, ctx, path, init) {
 }
 
 function fresh(overrides) {
-  const { env, ctx, log, tables } = createEnv(seed(overrides))
-  return { env, ctx, log, tables }
+  const { env, ctx, log, tables, db } = createEnv(seed(overrides))
+  return { env, ctx, log, tables, db }
 }
+
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z3ZkAAAAASUVORK5CYII='
 
 // ---------- 重定向与规范化 ----------
 
@@ -383,7 +385,7 @@ test('媒体上传生成互不相同的 id 且写入 R2', async () => {
   for (let i = 0; i < 3; i++) {
     const res = await fetchPath(env, ctx, '/api/media', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({ filename: `pic-${i}.png`, dataBase64: 'aGk=', mimeType: 'image/png', width: 100, height: 50 }),
+      body: JSON.stringify({ filename: `pic-${i}.png`, dataBase64: PNG_1PX, mimeType: 'image/png', width: 100, height: 50 }),
     })
     assert.equal(res.status, 201)
     const data = await res.json()
@@ -401,7 +403,7 @@ test('媒体上传失败时回滚 DB 记录', async () => {
   const res = await fetchPath(env, ctx, '/api/media', {
     method: 'POST',
     headers: { Authorization: 'Bearer test-token', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename: 'fail.png', dataBase64: 'aGk=', mimeType: 'image/png' }),
+    body: JSON.stringify({ filename: 'fail.png', dataBase64: PNG_1PX, mimeType: 'image/png' }),
   })
   assert.equal(res.status, 502)
   assert.equal(tables.media.filter(m => m.filename === 'fail.png').length, 0, '不应留下无文件的 media 记录')
@@ -443,4 +445,238 @@ test('英文首页的分类名走英文映射，不吐库里的中文名', async
   assert.ok(html.includes('Card With Category'), '这篇英文文章应出现在英文首页')
   assert.ok(html.includes('Virtual Card Reviews'), '英文站应显示分类的英文名')
   assert.ok(!html.includes('虚拟卡评测'), '英文站不应出现中文分类名')
+})
+
+// ---------- 回归：双语、日期、语言替代 ----------
+
+test('英文配对摘要沿正确主键回退，并标记中文语言', async () => {
+  const { env, ctx } = fresh()
+  const html = await (await fetchPath(env, ctx, '/en/')).text()
+  assert.ok(html.includes('费率、开卡与风控实测。'), '英文空摘要应回退到中文配对摘要')
+  assert.match(html, /<p lang="zh">费率、开卡与风控实测。<\/p>/, '回退摘要必须声明中文')
+  assert.ok(html.includes('Virtual Card Reviews'), '英文配对分类应正确显示')
+})
+
+test('英文分类页用英文配对，不重复中文 fallback', async () => {
+  const { env, ctx } = fresh()
+  const html = await (await fetchPath(env, ctx, '/en/virtual-credit-card/')).text()
+  assert.ok(html.includes('Virtual Card Platform Review'))
+  assert.equal((html.match(/虚拟卡平台实测/g) || []).length, 0, '已有英文配对时不应再出现中文同一篇')
+})
+
+test('可读日期只输出合法 ISO，不污染页面和 sitemap', async () => {
+  const { env, ctx } = fresh()
+  const article = await (await fetchPath(env, ctx, '/crypto-card-guide/')).text()
+  assert.ok(article.includes('2025-11-21'), '可见日期应为 2025-11-21')
+  assert.ok(!article.includes('November 2<'), '不能把 November 21 截成 November 2')
+  const sitemap = await (await fetchPath(env, ctx, '/sitemap.xml')).text()
+  assert.ok(sitemap.includes('<lastmod>2025-11-21</lastmod>'), 'sitemap 日期必须合法')
+  assert.ok(!sitemap.includes('<lastmod>November'), 'sitemap 不应出现截断英文日期')
+})
+
+test('语言切换和 hreflang 只指向真实配对', async () => {
+  const { env, ctx } = fresh()
+  const translated = await (await fetchPath(env, ctx, '/virtual-credit-card-platform-review/')).text()
+  assert.ok(translated.includes('hreflang="en" href="https://virtualcardx.com/en/virtual-credit-card-platform-review/"'), '有配对时输出英文 alternate')
+  assert.ok(translated.includes('href="/en/virtual-credit-card-platform-review/" hreflang="en"'), '语言切换指向英文正文')
+
+  const englishOnly = await (await fetchPath(env, ctx, '/en/2026/07/04/tailscale-guide/')).text()
+  assert.ok(!englishOnly.includes('hreflang="zh"'), '英文独有文章不应伪造中文 alternate')
+  assert.ok(!englishOnly.includes('href="/2026/07/04/tailscale-guide/" hreflang="zh"'), '没有中文配对时不应显示语言切换')
+})
+
+test('英文回退中文正文时 canonical 回原文且 noindex', async () => {
+  const { env, ctx } = fresh()
+  const html = await (await fetchPath(env, ctx, '/en/crypto-card-guide/')).text()
+  assert.ok(html.includes('<article class="article" lang="zh">'), '中文正文需声明语言')
+  assert.ok(html.includes('rel="canonical" href="https://virtualcardx.com/crypto-card-guide/"'), '回退页 canonical 指中文原文')
+  assert.ok(html.includes('noindex,follow'), '未翻译回退页不应被索引')
+  assert.ok(!html.includes('hreflang="en"'), '不应把中文原文声明为英文 alternate')
+})
+
+test('文章页多分类逐个链接，JSON-LD 面包屑包含分类', async () => {
+  const { env, ctx } = fresh({
+    posts: basePosts.map(p => p.id === 1 ? { ...p, category_ids: '[7,8]' } : p),
+  })
+  const html = await (await fetchPath(env, ctx, '/virtual-credit-card-platform-review/')).text()
+  assert.match(html, /<nav class="breadcrumbs"[\s\S]*href="\/virtual-credit-card\/"[\s\S]*href="\/cryptocurrency\/"/, '可见面包屑应有两个分类链接')
+  const jsonld = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])
+  const crumbs = jsonld['@graph'].find(n => n['@type'] === 'BreadcrumbList').itemListElement
+  assert.equal(crumbs.length, 4, '首页 + 两个分类 + 文章')
+  assert.equal(crumbs[1].name, '虚拟卡评测')
+})
+
+// ---------- 回归：搜索、sitemap、重定向 ----------
+
+test('搜索按真实总数分页，不再截断 20 条', async () => {
+  const extra = Array.from({ length: 20 }, (_, i) => ({
+    id: 500 + i, lang: 'zh', slug: `searchable-${i}`, title: `Searchable ${i}`,
+    excerpt: '摘要', content: '<p>needle body</p>', path: `searchable-${i}`,
+    date: `2026-06-${String((i % 20) + 1).padStart(2, '0')}`, modified: '2026-06-01',
+    status: 'publish', featured_media: null, category_ids: '[]', tag_ids: '[]', translation_id: null, sticky: 0,
+  }))
+  const { env, ctx } = fresh({ posts: extra })
+  const first = await (await fetchPath(env, ctx, '/search?q=searchable')).text()
+  assert.equal((first.match(/class="cell"/g) || []).length, 9, '第一页 9 条')
+  assert.ok(first.includes('1 / 3 · 20'), '显示真实总数与页数')
+  assert.equal(first.match(/value="searchable"/g)?.length, 2, '两个搜索框都应保留查询词')
+
+  const third = await (await fetchPath(env, ctx, '/search?q=searchable&page=3')).text()
+  assert.equal((third.match(/class="cell"/g) || []).length, 2, '第三页应剩 2 条')
+  const beyond = await fetchPath(env, ctx, '/search?q=searchable&page=4')
+  assert.equal(beyond.status, 404)
+})
+
+test('搜索把 % 和 _ 当作普通字符', async () => {
+  const { env, ctx } = fresh()
+  const html = await (await fetchPath(env, ctx, '/search?q=%25')).text()
+  assert.ok(html.includes('没有匹配'), '% 不应匹配所有文章')
+  const underscore = await (await fetchPath(env, ctx, '/search?q=_')).text()
+  assert.ok(underscore.includes('没有匹配'), '_ 不应匹配单字符')
+})
+
+test('sitemap 只列真实静态页和分类，不提交 404', async () => {
+  const { env, ctx } = fresh()
+  const xml = await (await fetchPath(env, ctx, '/sitemap.xml')).text()
+  assert.ok(xml.includes('/about/'))
+  assert.ok(!xml.includes('/contact/'), 'fixture 没有 contact 页，不能硬编码')
+  assert.ok(!xml.includes('/terms/'), 'fixture 没有 terms 页，不能硬编码')
+  assert.ok(xml.includes('/virtual-credit-card/'))
+  assert.ok(xml.includes('/en/cryptocurrency/'))
+})
+
+test('未知日期型 URL 返回 404，不再软跳首页', async () => {
+  const { env, ctx } = fresh()
+  const res = await fetchPath(env, ctx, '/2026/01/01/definitely-missing/')
+  assert.equal(res.status, 404)
+  assert.ok((await res.text()).includes('class="notfound"'))
+})
+
+test('RSS 输出语言独立的订阅源', async () => {
+  const { env, ctx } = fresh()
+  const zh = await fetchPath(env, ctx, '/feed.xml')
+  assert.equal(zh.status, 200)
+  assert.match(zh.headers.get('content-type'), /rss\+xml/)
+  const xml = await zh.text()
+  assert.ok(xml.includes('<language>zh-CN</language>'))
+  assert.ok(xml.includes('/virtual-credit-card-platform-review/'))
+
+  const en = await fetchPath(env, ctx, '/en/feed.xml')
+  const enXml = await en.text()
+  assert.ok(enXml.includes('<language>en</language>'))
+  assert.ok(enXml.includes('/en/2026/07/04/tailscale-guide/'))
+})
+
+// ---------- 回归：可访问性、图片和上传 ----------
+
+test('页面有 skip link、外链脚本和可访问的移动菜单', async () => {
+  const { env, ctx } = fresh()
+  const res = await fetchPath(env, ctx, '/')
+  const html = await res.text()
+  assert.ok(html.includes('class="skip-link" href="#main"'), '缺跳到正文链接')
+  assert.ok(html.includes('<main id="main" tabindex="-1">'))
+  assert.ok(html.includes('aria-controls="mainNav"'), '菜单按钮要关联面板')
+  assert.ok(html.includes('<script src="/app.js" defer></script>'), '交互脚本必须外链')
+  assert.ok(!html.includes('nav.classList.toggle'), '不应继续内联脚本')
+  const csp = res.headers.get('content-security-policy')
+  assert.ok(!csp.includes("script-src 'self' 'unsafe-inline'"), '脚本 CSP 不应允许内联')
+})
+
+test('中文分页本地化并标记禁用状态', async () => {
+  const extra = Array.from({ length: 10 }, (_, i) => ({
+    id: 600 + i, lang: 'zh', slug: `page-a11y-${i}`, title: `分页 ${i}`, excerpt: '摘要',
+    content: '<p>x</p>', path: `page-a11y-${i}`, date: '2026-05-01', modified: '2026-05-01',
+    status: 'publish', featured_media: null, category_ids: '[]', tag_ids: '[]', translation_id: null, sticky: 0,
+  }))
+  const { env, ctx } = fresh({ posts: extra })
+  const html = await (await fetchPath(env, ctx, '/')).text()
+  assert.ok(html.includes('aria-label="分页"'))
+  assert.ok(html.includes('aria-label="下一页"'))
+  assert.ok(html.includes('class="first disabled" aria-disabled="true"'), '首页的第一页按钮应禁用')
+})
+
+test('有特色图时正文首图不抢 LCP，并折叠虚假 srcset', async () => {
+  const { env, ctx } = fresh({
+    posts: basePosts.map(p => p.id === 1 ? {
+      ...p,
+      content: '<p>正文</p><img src="/wp-content/uploads/2026/01/old.jpg" srcset="/wp-content/uploads/2026/01/old-300x200.jpg 300w, /wp-content/uploads/2026/01/old.jpg 800w" alt="">',
+    } : p),
+  })
+  const html = await (await fetchPath(env, ctx, '/virtual-credit-card-platform-review/')).text()
+  assert.equal((html.match(/fetchpriority="high"/g) || []).length, 1, '只有特色图是高优先级')
+  assert.match(html, /src="\/media\/11-old.jpg"[^>]*loading="lazy"/, '正文图应懒加载')
+  assert.ok(!html.includes('old.jpg 300w'), '不真实的 srcset 应移除')
+})
+
+test('文章 OG 图输出实际尺寸和替代文本', async () => {
+  const { env, ctx } = fresh()
+  const html = await (await fetchPath(env, ctx, '/virtual-credit-card-platform-review/')).text()
+  assert.ok(html.includes('property="og:image:width" content="1200"'))
+  assert.ok(html.includes('property="og:image:height" content="675"'))
+  assert.ok(html.includes('name="twitter:image:alt" content="Card"'))
+})
+
+test('上传文件名被白名单化，伪装图片被拒绝', async () => {
+  const { env, ctx } = fresh()
+  const auth = { Authorization: 'Bearer test-token', 'Content-Type': 'application/json' }
+  const res = await fetchPath(env, ctx, '/api/media', {
+    method: 'POST', headers: auth,
+    body: JSON.stringify({ filename: 'x" onerror="alert(1).png', dataBase64: PNG_1PX, mimeType: 'image/png' }),
+  })
+  assert.equal(res.status, 201)
+  const data = await res.json()
+  assert.match(data.path, /^media\/\d+-x-onerror-alert-1\.png$/, '路径只能含安全字符')
+  assert.ok(!data.path.includes('"'))
+
+  const fake = await fetchPath(env, ctx, '/api/media', {
+    method: 'POST', headers: auth,
+    body: JSON.stringify({ filename: 'fake.png', dataBase64: 'aGk=', mimeType: 'image/png' }),
+  })
+  assert.equal(fake.status, 415, '内容魔数不是图片时应拒绝')
+})
+
+test('API 拒绝非法分页参数和 null JSON', async () => {
+  const { env, ctx } = fresh()
+  const auth = { Authorization: 'Bearer test-token' }
+  let res = await fetchPath(env, ctx, '/api/posts?limit=-1', { headers: auth })
+  assert.equal(res.status, 400)
+  res = await fetchPath(env, ctx, '/api/posts?offset=-1', { headers: auth })
+  assert.equal(res.status, 400)
+  res = await fetchPath(env, ctx, '/api/posts', {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: 'null',
+  })
+  assert.equal(res.status, 400)
+})
+
+// ---------- 回归：数据库约束和触发器 ----------
+
+test('规范化时间戳和分类关系由数据库触发器维护', async () => {
+  const { db } = fresh()
+  const row = db.prepare('SELECT date_ts, modified_ts FROM posts WHERE id = 3').get()
+  assert.equal(new Date(row.date_ts * 1000).toISOString().slice(0, 10), '2025-11-21')
+  const links = db.prepare('SELECT category_id FROM post_categories WHERE post_id = 1 ORDER BY category_id').all()
+  assert.deepEqual(links.map(r => r.category_id), [7])
+})
+
+test('数据库阻止重复规范路径', async () => {
+  const { db } = fresh()
+  assert.throws(() => {
+    db.prepare("INSERT INTO posts (lang, slug, title, path) VALUES ('zh', 'dupe', 'Duplicate', 'crypto-card-guide')").run()
+  }, /UNIQUE constraint/)
+})
+
+test('全文索引支持中英文子串搜索', async () => {
+  const { env, ctx } = fresh()
+  const zh = await (await fetchPath(env, ctx, '/search?q=虚拟卡平台')).text()
+  assert.ok(zh.includes('虚拟卡平台实测'), '中文短语应命中')
+  const en = await (await fetchPath(env, ctx, '/en/?s=platform')).text()
+  assert.ok(en.includes('Virtual Card Platform Review'), '英文子串应命中')
+})
+
+test('英文默认分享图独立，字体使用内容哈希', async () => {
+  const { env, ctx } = fresh()
+  const en = await (await fetchPath(env, ctx, '/en/')).text()
+  assert.ok(en.includes('content="https://virtualcardx.com/brand/og-en.png"'), '英文页使用英文分享卡')
+  assert.ok(!en.includes('content="https://virtualcardx.com/brand/og.png"'), '英文页不应回退中文品牌卡')
+  assert.match(en, /fonts\/ibm-plex-sans-latin-wght-normal-[a-f0-9]{8}\.woff2/, '字体名必须带内容哈希')
 })

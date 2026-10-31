@@ -5,6 +5,34 @@ import { pageDescFor, categoryDescFor } from './meta-desc.js'
 
 const app = new Hono({ strict: false })
 
+// 每个请求有独立 id；只记录状态、耗时和路由，不记录 Authorization 或正文。
+app.use('*', async (c, next) => {
+  const id = crypto.randomUUID()
+  c.set('requestId', id)
+  const started = Date.now()
+  await next()
+  c.header('X-Request-ID', id)
+  if (c.res.status >= 500) {
+    console.error(JSON.stringify({ event: 'http_5xx', requestId: id, method: c.req.method, path: new URL(c.req.url).pathname, status: c.res.status, ms: Date.now() - started }))
+  }
+})
+
+// 搜索与 API 的按 IP 粗粒度限流。生产使用 Cloudflare Rate Limiting binding；
+// 未绑定（本地测试）时跳过，严格的全局限流仍应由 Zone 规则兜底。
+app.use('*', async (c, next) => {
+  const path = new URL(c.req.url).pathname
+  const isSearch = path === '/search' || !!c.req.query('s')
+  const isApi = path.startsWith('/api/') && path !== '/api/health'
+  if ((!isSearch && !isApi) || !c.env.RATE_LIMITER) return next()
+  const key = `${isSearch ? 'search' : 'api'}:${c.req.header('CF-Connecting-IP') || 'unknown'}`
+  const result = await c.env.RATE_LIMITER.limit({ key })
+  if (!result.success) {
+    c.header('Retry-After', '60')
+    return c.text(isSearch ? 'Too many searches. Try again shortly.' : 'Rate limit exceeded', 429)
+  }
+  return next()
+})
+
 // www -> 非 www 301 (保持老站行为)
 app.use('*', async (c, next) => {
   const host = c.req.header('host') || ''
@@ -151,7 +179,7 @@ app.use('*', async (c, next) => {
   if (cached) {
     const hit = new Response(cached.body, cached)
     hit.headers.set('Cache-Control', 'public, max-age=0, must-revalidate')
-    hit.headers.set('CDN-Cache-Control', 'public, max-age=1800')
+    hit.headers.set('CDN-Cache-Control', 'public, max-age=300')
     hit.headers.set('X-VCX-Cache', 'HIT')
     return hit
   }
@@ -160,8 +188,8 @@ app.use('*', async (c, next) => {
   const contentType = c.res.headers.get('Content-Type') || ''
   if (c.res.status === 200 && contentType.toLowerCase().includes('text/html') && !c.res.headers.has('Set-Cookie')) {
     const stored = c.res.clone()
-    stored.headers.set('Cache-Control', 'public, max-age=1800')
-    stored.headers.set('CDN-Cache-Control', 'public, max-age=1800')
+    stored.headers.set('Cache-Control', 'public, max-age=300')
+    stored.headers.set('CDN-Cache-Control', 'public, max-age=300')
     const put = cache.put(cacheKey, stored)
     try {
       c.executionCtx.waitUntil(put)
@@ -179,7 +207,7 @@ app.use('*', async (c, next) => {
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin')
   c.header('X-Frame-Options', 'SAMEORIGIN')
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
-  c.header('Content-Security-Policy', "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; frame-src https:")
+  c.header('Content-Security-Policy', "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: https:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com; frame-src https:")
 
   const url = new URL(c.req.url)
   const method = c.req.method.toUpperCase()
@@ -189,9 +217,9 @@ app.use('*', async (c, next) => {
     path === '/sitemap.xml' || path === '/robots.txt' || path === '/favicon.ico' || path === '/virtualcardx2026.txt'
   if ((method === 'GET' || method === 'HEAD') && !url.search && !excluded && contentType.toLowerCase().includes('text/html')) {
     if (c.res.status === 200) {
-      // 浏览器每次重新验证；Cloudflare 边缘缓存 30 分钟，内容更新由受信发布客户端精准 purge。
+      // 浏览器每次重新验证；边缘最长 5 分钟，写 API 还会主动清当前 PoP 的条目。
       c.header('Cache-Control', 'public, max-age=0, must-revalidate')
-      c.header('CDN-Cache-Control', 'public, max-age=1800')
+      c.header('CDN-Cache-Control', 'public, max-age=300')
     } else {
       // 404 / 5xx 不写边缘缓存：否则一次临时错误页会在 CDN 上挂 30 分钟
       c.header('Cache-Control', 'no-store')
@@ -215,10 +243,10 @@ const MARK = `<svg class="logo-mark" width="26" height="18" viewBox="0 0 26 18" 
 // ============ 共享 CSS ============
 const CSS = `
 /* ===== 字体：拉丁用自托管 IBM Plex，中文走系统黑体栈 ===== */
-@font-face{font-family:'Plex Sans';src:url('/fonts/ibm-plex-sans-latin-wght-normal.woff2') format('woff2');font-weight:100 700;font-style:normal;font-display:swap}
-@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
-@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Sans';src:url('/fonts/ibm-plex-sans-latin-wght-normal-e2291e84.woff2') format('woff2');font-weight:100 700;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-400-normal-08949f72.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-500-normal-01d28544.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-600-normal-0d1f0b8d.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
 
 :root{
   /* 一套石墨灰阶 + 一个信号色。这是全部颜色。 */
@@ -245,6 +273,8 @@ a:hover{text-decoration:underline;text-underline-offset:2px;text-decoration-thic
 img{max-width:100%;height:auto;display:block}
 ::selection{background:var(--rule);color:var(--ink)}
 :focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.skip-link{position:fixed;left:16px;top:-60px;z-index:200;background:var(--fill);color:#fff;padding:10px 14px;font-size:13px;transition:top .12s}
+.skip-link:focus{top:12px;text-decoration:none}
 .container{max-width:var(--w);margin:0 auto;padding:0 16px}
 
 /* 字距只对拉丁收紧；中文压缩会挤字形 */
@@ -336,7 +366,7 @@ html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-wei
 /* 占位格只在网格排成 3 列（内容宽 >= 888px）时才需要。
    用两个类压过 .cell 的 display:flex —— 单类同权重，后定义的那个会赢 */
 .cell.cell-empty{display:none;pointer-events:none}
-@media(min-width:920px){.cell.cell-empty{display:flex}}
+@media(min-width:921px){.cell.cell-empty{display:flex}}
 .cell{position:relative;display:flex;flex-direction:column;padding:22px 24px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
 .cell-no{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-bottom:10px;font-variant-numeric:tabular-nums}
 .cell h3{font-size:16px;font-weight:600;line-height:1.36;margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -360,7 +390,7 @@ html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-wei
 .pagination a:hover{background:var(--surface);color:var(--ink);text-decoration:none}
 .pagination .cur{background:var(--fill);color:#fff}
 .pagination .dots{color:var(--ink-2);min-width:20px}
-.pagination .disabled{color:var(--ink-2)}
+.pagination .disabled{color:var(--ink-3);opacity:.55;cursor:not-allowed}
 .pagination .page-info{margin-left:auto;padding-left:16px;display:inline-flex;align-items:center;font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
 
 /* ===== 侧栏 ===== */
@@ -459,7 +489,8 @@ html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-sp
 /* ===== 响应式 ===== */
 @media(max-width:900px){
   .layout{grid-template-columns:minmax(0,1fr);gap:0;padding:24px 16px 48px}
-  .sidebar{display:none}
+  .sidebar{display:flex;position:static;gap:28px;margin-top:40px;padding-top:4px;border-top:1px solid var(--rule)}
+  .sidebar .record-widget{display:none}
   .hero{grid-template-columns:minmax(0,1fr);gap:22px;margin-bottom:32px}
   .hero-lede{margin-bottom:20px}
   /* 三条数字事实竖排会吃掉近 200px 首屏，手机端压成一行三列 */
@@ -542,20 +573,91 @@ function safeEqual(a, b) {
   for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i)
   return out === 0
 }
+function safeDecode(value) {
+  try { return decodeURIComponent(value) } catch { return null }
+}
+async function jsonBody(c, maxBytes = 1_000_000) {
+  const declared = Number(c.req.header('content-length') || 0)
+  if (declared > maxBytes) return { error: 'Request body too large', status: 413 }
+  let text
+  try { text = await c.req.text() } catch { return { error: 'Invalid request body', status: 400 } }
+  if (text.length > maxBytes) return { error: 'Request body too large', status: 413 }
+  let body
+  try { body = JSON.parse(text) } catch { return { error: 'Invalid JSON', status: 400 } }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'JSON object required', status: 400 }
+  }
+  return { body }
+}
+function validPostPath(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 240 &&
+    !value.includes('..') && !value.includes('?') && !value.includes('#') &&
+    /^[a-z0-9\u4e00-\u9fa5][a-z0-9\-_/\u4e00-\u9fa5]*$/i.test(value)
+}
+function imageType(buf) {
+  if (buf.length >= 8 && buf[0]===0x89 && buf[1]===0x50 && buf[2]===0x4e && buf[3]===0x47) return { mime: 'image/png', ext: 'png' }
+  if (buf.length >= 3 && buf[0]===0xff && buf[1]===0xd8 && buf[2]===0xff) return { mime: 'image/jpeg', ext: 'jpg' }
+  if (buf.length >= 12 && String.fromCharCode(...buf.slice(0,4))==='RIFF' && String.fromCharCode(...buf.slice(8,12))==='WEBP') return { mime: 'image/webp', ext: 'webp' }
+  if (buf.length >= 6 && String.fromCharCode(...buf.slice(0,3))==='GIF') return { mime: 'image/gif', ext: 'gif' }
+  return null
+}
+function safeImageFilename(value, ext) {
+  const base = String(value || '').replace(/[\\/]+/g, '_').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[.-]+/, '').slice(0, 120)
+  const stem = (base.replace(/\.[A-Za-z0-9]+$/, '') || 'image').replace(/-+/g, '-').replace(/-+$/, '')
+  return `${stem || 'image'}.${ext}`
+}
 // 日期格式化: 兼容 ISO (2026-08-04T02:07:35) 和可读格式 (November 21, 2025)
-// 统一输出 YYYY-MM-DD: 列表里日期是等宽小字, 混排两种格式会让行看起来歪。
+// 无法解析时返回空串，避免把 "November 2" 这类截断值写进 JSON-LD / sitemap。
 function fmtDate(d) {
   if (!d) return ''
   const s = String(d).trim()
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10)
-  const t = Date.parse(s)
-  if (!Number.isNaN(t)) {
-    const dt = new Date(t)
-    const p = (n) => String(n).padStart(2, '0')
-    // 用本地日期: "November 21, 2025" 按本地零点解析, 走 UTC 会回退一天
-    return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}`
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const iso = s.slice(0, 10)
+    return Number.isNaN(Date.parse(`${iso}T00:00:00Z`)) ? '' : iso
   }
-  return s
+  const t = Date.parse(s)
+  if (Number.isNaN(t)) return ''
+  const dt = new Date(t)
+  const p = (n) => String(n).padStart(2, '0')
+  // 用本地日期: "November 21, 2025" 按本地零点解析, 走 UTC 会回退一天
+  return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}`
+}
+function dateTs(d) {
+  const iso = fmtDate(d)
+  return iso ? Date.parse(`${iso}T00:00:00Z`) : 0
+}
+function plainText(value) {
+  return String(value || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').trim()
+}
+function xmlEsc(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
+}
+function likePattern(value) {
+  return `%${String(value).replace(/[\\%_]/g, '\\$&')}%`
+}
+function normalizeQuery(q) {
+  return String(q || '').trim().slice(0, 80)
+}
+function ftsPhrase(q) {
+  return `"${String(q).replace(/"/g, '""')}"`
+}
+function searchSql(lang, q, { count = false } = {}) {
+  // trigram 至少 3 个字符；更短的查询才回退到 LIKE。
+  if ([...q].length >= 3) {
+    return {
+      from: 'posts p JOIN posts_fts ON posts_fts.rowid = p.id',
+      where: "p.lang = ? AND p.status = 'publish' AND posts_fts MATCH ?",
+      params: [lang, ftsPhrase(q)],
+      order: 'ORDER BY bm25(posts_fts), p.sticky DESC, COALESCE(p.date_ts, 0) DESC',
+    }
+  }
+  const pattern = likePattern(q)
+  return {
+    from: 'posts p',
+    where: "p.lang = ? AND p.status = 'publish' AND (p.title LIKE ? ESCAPE '\\' OR p.content LIKE ? ESCAPE '\\')",
+    params: [lang, pattern, pattern],
+    order: 'ORDER BY p.sticky DESC, COALESCE(p.date_ts, 0) DESC',
+  }
 }
 // ===== 统一分页导航生成器 =====
 // 生成智能页码: 首尾固定, 当前页前后各 WINDOW 页, 中间用省略号
@@ -578,13 +680,21 @@ function buildPageLinks(cur, totalPages, urlFor) {
 // 完整分页组件: prev/首页/页码/末页/next + rel=prev/next
 function renderPagination(cur, totalPages, urlFor, opts={}) {
   if (totalPages <= 1) return ''
-  const prevHtml = cur > 1 ? `<a class="prev" rel="prev" href="${urlFor(cur-1)}" aria-label="Previous">‹</a>` : '<span class="prev disabled">‹</span>'
-  const nextHtml = cur < totalPages ? `<a class="next" rel="next" href="${urlFor(cur+1)}" aria-label="Next">›</a>` : '<span class="next disabled">›</span>'
-  const firstHtml = cur > 1 ? `<a class="first" href="${urlFor(1)}" aria-label="First">«</a>` : '<span class="first disabled">«</span>'
-  const lastHtml = cur < totalPages ? `<a class="last" href="${urlFor(totalPages)}" aria-label="Last">»</a>` : '<span class="last disabled">»</span>'
+  const en = opts.lang === 'en'
+  const label = {
+    nav: en ? 'Pagination' : '分页',
+    prev: en ? 'Previous page' : '上一页',
+    next: en ? 'Next page' : '下一页',
+    first: en ? 'First page' : '第一页',
+    last: en ? 'Last page' : '最后一页',
+  }
+  const prevHtml = cur > 1 ? `<a class="prev" rel="prev" href="${urlFor(cur-1)}" aria-label="${label.prev}">‹</a>` : `<span class="prev disabled" aria-disabled="true" aria-label="${label.prev}">‹</span>`
+  const nextHtml = cur < totalPages ? `<a class="next" rel="next" href="${urlFor(cur+1)}" aria-label="${label.next}">›</a>` : `<span class="next disabled" aria-disabled="true" aria-label="${label.next}">›</span>`
+  const firstHtml = cur > 1 ? `<a class="first" href="${urlFor(1)}" aria-label="${label.first}">«</a>` : `<span class="first disabled" aria-disabled="true" aria-label="${label.first}">«</span>`
+  const lastHtml = cur < totalPages ? `<a class="last" href="${urlFor(totalPages)}" aria-label="${label.last}">»</a>` : `<span class="last disabled" aria-disabled="true" aria-label="${label.last}">»</span>`
   const links = buildPageLinks(cur, totalPages, urlFor)
   const info = opts.showInfo ? `<span class="page-info">${cur} / ${totalPages}</span>` : ''
-  return `<nav class="pagination" aria-label="Pagination">${firstHtml}${prevHtml}${links}${nextHtml}${lastHtml}${info}</nav>`
+  return `<nav class="pagination" aria-label="${label.nav}">${firstHtml}${prevHtml}${links}${nextHtml}${lastHtml}${info}</nav>`
 }
 // 解析分页参数: 合法返回页码, 非法返回 null
 function parsePage(n) {
@@ -637,32 +747,6 @@ const CATEGORY_NAMES_EN = {
 }
 
 // ============ 共享布局 ============
-// 生成当前页面对应语言的 URL (语言切换按钮)
-// path 格式: 不带语言前缀 (如 '2026/07/13/79card-review', 'virtual-credit-card/', 'about', 'search?q=visa')
-function langSwitchHref(lang, curPath) {
-  const en = lang === 'en'
-  if (!curPath) return en ? '/' : '/en/'
-  // 分离 query 参数
-  let [p, query] = curPath.split('?')
-  // 去掉尾部斜杠统一处理
-  p = p.replace(/^\/+|\/+$/g, '')
-  if (!p) {
-    // 纯 query (如 ?s=visa): 直接换语言前缀
-    const q = query ? '?' + query : ''
-    return en ? '/' + q : '/en/' + q
-  }
-  // 已经是目标语言的 URL (英文页面的中文版=去前缀, 中文页面的英文版=加前缀)
-  let out
-  if (en) {
-    // 当前是英文页 -> 中文版: 去掉 /en/ 前缀
-    if (p.startsWith('en/')) p = p.slice(3)
-    out = '/' + p + '/'
-  } else {
-    // 当前是中文页 -> 英文版: 加 /en/ 前缀
-    out = '/en/' + p + '/'
-  }
-  return query ? out + '?' + query : out
-}
 function layout(lang, title, desc, body, opts={}) {
   const base = baseOf(lang)
   const cats = lang==='en' ? CATS_EN : CATS_ZH
@@ -672,7 +756,9 @@ function layout(lang, title, desc, body, opts={}) {
     const on = opts.cat && u.replace(/^\/en\//, '/').split('/').filter(Boolean).pop() === opts.cat
     return `<a href="${u}"${on ? ' aria-current="page"' : ''}>${n}</a>`
   }).join('')
-  const altHref = langSwitchHref(lang, opts.path)
+  // 只有调用方确认过目标语言存在等价页面时才传 altHref。
+  const altHref = opts.altHref || ''
+  const switchHref = opts.switchHref === undefined ? altHref : (opts.switchHref || '')
   const altLabel = lang==='en' ? '中文' : 'English'
   const searchPlaceholder = lang==='en' ? 'Search...' : '搜索文章...'
   const homeLabel = lang==='en' ? 'Home' : '首页'
@@ -681,12 +767,23 @@ function layout(lang, title, desc, body, opts={}) {
   // twitter:card 的归属也在这里判断：文章自己声明过就别再插一条，否则同页两个值打架。
   const ownImage = (opts.extraHead||'').includes('og:image')
   const ownTwitterCard = (opts.extraHead||'').includes('twitter:card')
-  const seoHead = opts.omitCanonical ? '' : `
-<link rel="canonical" href="${SITE}${canonical}">
-<link rel="alternate" hreflang="${lang==='en'?'zh':'en'}" href="${SITE}${altHref}">
-<link rel="alternate" hreflang="${lang}" href="${SITE}${canonical}">
-<link rel="alternate" hreflang="x-default" href="${SITE}${lang==='zh' ? canonical : altHref}">
-<meta property="og:url" content="${SITE}${canonical}">`
+  const ogLocale = opts.ogLocale || (lang==='en'?'en_US':'zh_CN')
+  let alternateHead = ''
+  if (!opts.omitCanonical) {
+    const translated = !!altHref
+    const zhHref = lang === 'zh' ? canonical : altHref
+    const enHref = lang === 'en' ? canonical : altHref
+    alternateHead = `<link rel="canonical" href="${SITE}${canonical}">`
+    if (translated) {
+      alternateHead += `<link rel="alternate" hreflang="zh" href="${SITE}${zhHref}"><link rel="alternate" hreflang="en" href="${SITE}${enHref}"><link rel="alternate" hreflang="x-default" href="${SITE}${zhHref}">`
+    }
+    alternateHead += `<meta property="og:url" content="${SITE}${canonical}">`
+  }
+  const seoHead = alternateHead
+  const defaultOg = lang==='en' ? '/brand/og-en.png' : '/brand/og.png'
+  const defaultOgAlt = lang==='en'
+    ? 'VirtualCardx — independent notes on virtual cards, fees and funding'
+    : 'VirtualCardx — 虚拟信用卡费率、KYC 与充值实测'
   const sidebar = opts.noSidebar ? '' : `
   <aside class="sidebar">${opts.sidebar || `
     <div class="widget author-card">
@@ -716,27 +813,30 @@ ${opts.noindex ? '<meta name="robots" content="noindex,follow">' : ''}
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<link rel="alternate" type="application/rss+xml" title="VirtualCardx ${lang==='en'?'English':'中文'} feed" href="${base}feed.xml">
 <meta name="theme-color" content="#111820">
-<link rel="preload" href="/fonts/ibm-plex-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/ibm-plex-sans-latin-wght-normal-e2291e84.woff2" as="font" type="font/woff2" crossorigin>
 ${seoHead}
 <meta property="og:type" content="${opts.ogType||'website'}">
 <meta property="og:site_name" content="VirtualCardx">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
-<meta property="og:locale" content="${lang==='en'?'en_US':'zh_CN'}">
-${ownImage ? '' : `<meta property="og:image" content="${SITE}/brand/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="VirtualCardx">`}
+<meta property="og:locale" content="${ogLocale}">
+${ownImage ? '' : `<meta property="og:image" content="${SITE}${defaultOg}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="${esc(defaultOgAlt)}">`}
 ${ownTwitterCard ? '' : `<meta name="twitter:card" content="${ownImage ? 'summary' : 'summary_large_image'}">`}
 ${opts.jsonld ? `<script type="application/ld+json">${JSON.stringify(opts.jsonld).replace(/</g, '\\u003c')}</script>` : ''}
 ${opts.extraHead||''}
 <style>${CSS}</style>
+<script src="/app.js" defer></script>
 </head>
 <body>
+<a class="skip-link" href="#main">${lang==='en'?'Skip to content':'跳到正文'}</a>
 <header class="site-header">
   <div class="header-inner">
     <a class="logo" href="${base}">${MARK}VirtualCardx</a>
-    <nav class="main-nav" id="mainNav">
+    <nav class="main-nav" id="mainNav" aria-label="${lang==='en'?'Primary':'主导航'}">
       <form class="search-box nav-search" action="${base}" method="get" role="search">
-        <input type="search" name="s" placeholder="${searchPlaceholder}" aria-label="${searchPlaceholder}">
+        <input type="search" name="s" value="${esc(opts.searchQuery||'')}" placeholder="${searchPlaceholder}" aria-label="${searchPlaceholder}">
         <button type="submit">${lang==='en'?'Go':'搜索'}</button>
       </form>
       <a href="${base}">${homeLabel}</a>
@@ -745,11 +845,11 @@ ${opts.extraHead||''}
     </nav>
     <div class="nav-right">
       <form class="search-box head-search" action="${base}" method="get" role="search">
-        <input type="search" name="s" placeholder="${searchPlaceholder}" aria-label="${searchPlaceholder}">
+        <input type="search" name="s" value="${esc(opts.searchQuery||'')}" placeholder="${searchPlaceholder}" aria-label="${searchPlaceholder}">
         <button type="submit">${lang==='en'?'Go':'搜索'}</button>
       </form>
-      <a class="lang-switch" href="${altHref}">${altLabel}</a>
-      <button class="menu-toggle" aria-label="${lang==='en'?'Menu':'菜单'}" aria-expanded="false">
+      ${switchHref ? `<a class="lang-switch" href="${switchHref}" hreflang="${lang==='en'?'zh':'en'}">${altLabel}</a>` : ''}
+      <button class="menu-toggle" type="button" aria-label="${lang==='en'?'Menu':'菜单'}" aria-controls="mainNav" aria-expanded="false">
         <span class="bar"></span><span class="bar"></span><span class="bar"></span>
       </button>
     </div>
@@ -757,7 +857,7 @@ ${opts.extraHead||''}
 </header>
 <div class="cat-bar"><nav class="cat-bar-inner" aria-label="${lang==='en'?'Sections':'分类'}"><span class="label">${lang==='en'?'Sections':'分类'}</span>${catBarLinks}</nav></div>
 <div class="layout${opts.noSidebar?' no-sidebar':''}">
-  <main>${body}</main>
+  <main id="main" tabindex="-1">${body}</main>
   ${sidebar}
 </div>
 <footer class="site-footer">
@@ -780,24 +880,6 @@ ${opts.extraHead||''}
   </div>
   <div class="footer-bottom">© ${new Date().getFullYear()} VirtualCardx</div>
 </footer>
-<script>
-(function(){
-  var btn=document.querySelector('.menu-toggle'), nav=document.getElementById('mainNav');
-  if(!btn||!nav) return;
-  function close(){ nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
-  btn.addEventListener('click', function(e){
-    e.stopPropagation();
-    var open=nav.classList.toggle('open');
-    btn.setAttribute('aria-expanded', open?'true':'false');
-  });
-  nav.addEventListener('click', function(e){ if(e.target.tagName==='A') close(); });
-  document.addEventListener('click', function(e){
-    if(!nav.classList.contains('open')) return;
-    if(!nav.contains(e.target) && !btn.contains(e.target)) close();
-  });
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
-})();
-</script>
 </body>
 </html>`
 }
@@ -805,7 +887,7 @@ ${opts.extraHead||''}
 // 侧边栏最新文章
 async function recentPosts(c, lang, limit=5) {
   const { results } = await c.env.DB.prepare(
-    'SELECT slug, title, path, sticky FROM posts WHERE lang = ? AND status="publish" ORDER BY sticky DESC, date DESC LIMIT ?'
+    'SELECT slug, title, path, sticky FROM posts WHERE lang = ? AND status = \'publish\' ORDER BY sticky DESC, COALESCE(date_ts, 0) DESC LIMIT ?'
   ).bind(lang, limit).all()
   const base = baseOf(lang)
   const items = results.map(p => `<li><a href="${base}${p.path}/">${esc(p.title)}</a></li>`).join('')
@@ -815,7 +897,8 @@ async function recentPosts(c, lang, limit=5) {
 // 图片重写 (支持 src 和 data-src, 以及 srcset)
 // 查询批量化: 每篇文章最多 2 次 D1 查询 (旧实现每张图 2 次), 避免图多的文章顶到
 // Workers 单请求 subrequest 上限。
-async function rewriteImages(c, html, fallbackAlt='') {
+async function rewriteImages(c, html, fallbackAlt='', opts={}) {
+  const firstPriority = opts.firstPriority !== false
   // 1) 旧 WP 上传路径 -> 现存 media.path (一次 IN 查询)
   const re = /\/wp-content\/uploads\/[^"'\s)]+/g
   const found = [...new Set(html.match(re) || [])]
@@ -852,6 +935,9 @@ async function rewriteImages(c, html, fallbackAlt='') {
     if (/srcset="/.test(pre+post)) return m
     return `<img${pre} srcset="${srcset}"${post}>`
   })
+  // 旧 WP 的多个尺寸已被归并到同一个原图。在真正生成尺寸变体之前，
+  // 保留这些描述符只会让浏览器重复请求原图，所以折叠为单一 src。
+  html = html.replace(/\s(?:srcset|sizes)="[^"]*"/gi, '')
   // 4) 从 media 表补准确尺寸与空 alt，降低 CLS 并改善可访问性 (一次 IN 查询)
   const imageTags = [...new Set(html.match(/<img\b[^>]*>/gi) || [])]
   const tagToPath = new Map() // img tag -> media 表里的 path
@@ -886,8 +972,8 @@ async function rewriteImages(c, html, fallbackAlt='') {
   let imgCount = 0
   html = html.replace(/<img(?![^>]*loading=)[^>]*>/g, (m) => {
     imgCount++
-    // 第一张正文图不加 lazy (LCP), 加 fetchpriority=high
-    if (imgCount === 1) {
+    // 只有页面没有特色图时，正文首图才承担 LCP；有特色图时避免两张大图抢带宽。
+    if (imgCount === 1 && firstPriority) {
       return m.replace(/(<img[^>]*?)(\/?>)$/, '$1 fetchpriority="high" decoding="async">')
     }
     return m.replace(/(<img[^>]*?)(\/?>)$/, '$1 loading="lazy" decoding="async">')
@@ -904,19 +990,19 @@ async function rewriteImages(c, html, fallbackAlt='') {
 // 查询固定 2 次（配对摘要 + 分类名称），不随文章数增长。
 async function renderPostCards(c, lang, posts, opts = {}) {
   const base = baseOf(lang)
-  // 英文文章没有摘要时回退到中文配对
+  // translation_id 保存的是另一语言记录的主键。英文缺摘要/分类时，按中文主键查。
   const needPair = new Set()
   for (const p of posts) {
-    if (lang === 'en' && p.translation_id && !excerptText(p.excerpt)) needPair.add(p.translation_id)
+    const needsExcerpt = lang === 'en' && !excerptText(p.excerpt)
+    const needsCategory = lang === 'en' && opts.showCat && (!p.category_ids || p.category_ids === '[]')
+    if (p.translation_id && (needsExcerpt || needsCategory)) needPair.add(p.translation_id)
   }
-  const pairExcerpt = new Map()
+  const pairRows = new Map()
   if (needPair.size) {
     const rows = await queryAll(c,
-      `SELECT translation_id, excerpt FROM posts WHERE lang = 'zh' AND translation_id IN (${ph(needPair.size)})`,
+      `SELECT id, excerpt, category_ids FROM posts WHERE lang = 'zh' AND id IN (${ph(needPair.size)})`,
       [...needPair])
-    for (const r of rows) {
-      if (!pairExcerpt.get(r.translation_id) && r.excerpt) pairExcerpt.set(r.translation_id, r.excerpt)
-    }
+    for (const r of rows) pairRows.set(r.id, r)
   }
   // 分类 id -> 名称（只有 3 个分类，一次全表查询比每篇 JOIN 便宜）
   // 英文站不能直接吐 categories.name（库里存的是中文），按 slug 走一次映射
@@ -927,9 +1013,12 @@ async function renderPostCards(c, lang, posts, opts = {}) {
     for (const r of rows) { catName.set(r.id, r.name); catSlug.set(r.id, r.slug) }
   }
   const catOf = (p) => {
-    if (!catName.size || !p.category_ids) return ''
+    if (!catName.size) return ''
+    let raw = p.category_ids
+    if ((!raw || raw === '[]') && p.translation_id) raw = pairRows.get(p.translation_id)?.category_ids
+    if (!raw) return ''
     let ids = []
-    try { ids = JSON.parse(p.category_ids) || [] } catch { ids = [] }
+    try { ids = JSON.parse(raw) || [] } catch { ids = [] }
     for (const id of ids) {
       if (!catName.has(id)) continue
       if (lang === 'en') return CATEGORY_NAMES_EN[catSlug.get(id)] || ''
@@ -937,26 +1026,31 @@ async function renderPostCards(c, lang, posts, opts = {}) {
     }
     return ''
   }
-  // 阅读时长：按每分钟 400 字估算正文字数
+  // 阅读时长按可见文本计算；列表只取当前页正文，不会因此扫描全表。
+  const bodyLen = (p) => Number(p.body_len) || plainText(p.content).length
   const readMin = (p) => {
-    const n = Number(p.body_len) || 0
+    const n = bodyLen(p)
     if (!n) return ''
     return Math.max(1, Math.round(n / 400))
   }
-  return posts.map((p, i) => {
-    const excerpt = excerptText(p.excerpt, 120) || (p.translation_id ? excerptText(pairExcerpt.get(p.translation_id), 120) : '')
+  return posts.map((p) => {
+    const pair = p.translation_id ? pairRows.get(p.translation_id) : null
+    const ownExcerpt = excerptText(p.excerpt, 120)
+    const excerpt = ownExcerpt || (pair ? excerptText(pair.excerpt, 120) : '')
+    const excerptLang = !ownExcerpt && pair && pair.excerpt ? ' lang="zh"' : ''
     const cat = catOf(p)
     const min = readMin(p)
+    const len = bodyLen(p)
     const zhTag = opts.showZhTag && p.isZhFallback
       ? `<span class="tag">${lang === 'en' ? 'ZH source' : '中文原文'}</span>` : ''
     const spec = [
       cat ? `<dt>${lang === 'en' ? 'Filed' : '分类'}</dt><dd>${esc(cat)}</dd>` : '',
-      `<dt>${lang === 'en' ? 'Updated' : '更新'}</dt><dd>${esc(fmtDate(p.date))}</dd>`,
-      Number(p.body_len) ? `<dt>${lang === 'en' ? 'Length' : '正文'}</dt><dd>${Number(p.body_len)} ${lang === 'en' ? 'chars' : '字'}</dd>` : ''
+      `<dt>${lang === 'en' ? 'Updated' : '更新'}</dt><dd>${esc(fmtDate(p.modified) || fmtDate(p.date))}</dd>`,
+      len ? `<dt>${lang === 'en' ? 'Length' : '正文'}</dt><dd>${len} ${lang === 'en' ? 'chars' : '字'}</dd>` : ''
     ].join('')
-    return `<article class="cell">
+    return `<article class="cell"${p.isZhFallback ? ' lang="zh"' : ''}>
       <h3><a href="${base}${p.path}/">${esc(p.title)}</a></h3>
-      ${excerpt ? `<p>${esc(excerpt)}</p>` : ''}
+      ${excerpt ? `<p${excerptLang}>${esc(excerpt)}</p>` : ''}
       <dl class="spec">${spec}</dl>
       <div class="cell-foot">
         <span>${min ? (lang === 'en' ? `${min} min read` : `约 ${min} 分钟`) : (lang === 'en' ? 'Review' : '评测')}${zhTag}</span>
@@ -1011,35 +1105,58 @@ app.get('/media/*', async (c) => {
 app.get('/search', async (c) => {
   const lang = getLang(c.req.path)
   // 兼容 WP 风格 s 参数与 q 参数,避免 /search/?s=xx 被丢参 302 回首页
-  const q = (c.req.query('q') || c.req.query('s') || '').trim()
+  const q = normalizeQuery(c.req.query('q') || c.req.query('s') || '')
   if (!q) return c.redirect(baseOf(lang), 302)
-  return c.html(await handleSearch(c, lang, q))
+  const page = parsePage(c.req.query('page') || '1')
+  if (page === null) return notFoundHtml(c, lang)
+  return handleSearch(c, lang, q, page)
 })
 
 // 站内搜索 (WP 兼容 ?s= 与新版 /search?q= 共用)
-async function handleSearch(c, lang, q) {
-  const results = await queryAll(c,
-    'SELECT slug, title, excerpt, path, date, category_ids, translation_id, length(content) AS body_len FROM posts WHERE lang = ? AND status="publish" AND (title LIKE ? OR content LIKE ?) ORDER BY sticky DESC, date DESC LIMIT 20',
-    [lang, `%${q}%`, `%${q}%`])
+async function handleSearch(c, lang, q, page = 1) {
+  q = normalizeQuery(q)
+  if (!q) return c.redirect(baseOf(lang), 302)
+  const source = searchSql(lang, q)
+  const total = (await c.env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM ${source.from} WHERE ${source.where}`
+  ).bind(...source.params).first())?.n || 0
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
+  if (page > totalPages) return notFoundHtml(c, lang)
+  const offset = (page - 1) * PER_PAGE
+  const results = total ? await queryAll(c,
+    `SELECT p.slug, p.title, p.excerpt, p.content, p.path, p.date, p.modified,
+            p.category_ids, p.translation_id, p.sticky
+     FROM ${source.from}
+     WHERE ${source.where}
+     ${source.order}
+     LIMIT ? OFFSET ?`,
+    [...source.params, PER_PAGE, offset]) : []
   const cards = await renderPostCards(c, lang, results, { showCat: true })
-  const count = results.length
   const listHtml = cards
-    ? gridBlock(cards, count)
+    ? gridBlock(cards, results.length)
     : `<p class="empty-note">${lang==='en'
       ? `Nothing matched “${esc(q)}”. Try a card name, or a shorter phrase.`
       : `没有匹配 “${esc(q)}” 的内容。可以试试平台名，或者把关键词缩短一点。`}</p>`
   const sectionHead = cards
-    ? `<div class="section-head"><h2>${lang==='en'?'Matches':'匹配条目'}</h2><span class="count">${String(count).padStart(2,'0')}</span></div>`
+    ? `<div class="section-head"><h2>${lang==='en'?'Matches':'匹配条目'}</h2><span class="count">${page} / ${totalPages} · ${total}</span></div>`
     : ''
+  const urlFor = (n) => `?s=${encodeURIComponent(q)}${n > 1 ? `&page=${n}` : ''}`
+  const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true, lang })
   const heading = lang==='en' ? `Results for “${esc(q)}”` : `“${esc(q)}” 的搜索结果`
-  const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${baseOf(lang)}">${lang==='en'?'Home':'首页'}</a></nav><h1 class="page-title">${heading}</h1>${sectionHead}${listHtml}`
+  const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${baseOf(lang)}">${lang==='en'?'Home':'首页'}</a></nav><h1 class="page-title">${heading}</h1>${sectionHead}${listHtml}${pagination}`
   const searchDesc = lang==='en'
     ? `Search results for “${q}” on VirtualCardx. Browse related virtual card reviews, payment guides, and practical tutorials.`
     : `VirtualCardx 站内“${q}”搜索结果，查找相关虚拟卡评测、跨境支付指南与实用教程。`
-  return layout(lang, `${q} - VirtualCardx`, searchDesc, body, { noSidebar:true, path: `?s=${encodeURIComponent(q)}`, noindex:true })
+  const other = lang==='en' ? 'zh' : 'en'
+  const switchHref = `${baseOf(other)}?s=${encodeURIComponent(q)}${page > 1 ? `&page=${page}` : ''}`
+  return c.html(layout(lang, `${q} - VirtualCardx`, searchDesc, body, {
+    noSidebar:true, path: `?s=${encodeURIComponent(q)}`, noindex:true, omitCanonical:true,
+    switchHref, searchQuery: q,
+  }))
 }
 
-// 分类渲染 (带分页)
+// 分类渲染 (带分页)。分类关系走 post_categories，英文优先取自身分类，
+// 自身为空时沿 translation_id 取中文配对；没有英文配对的中文原文单列回退。
 async function renderCategory(c, lang, parentSlug, childSlug, page) {
   const base = baseOf(lang)
   let catRes
@@ -1052,70 +1169,60 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   }
   if (!catRes.results.length) return null
   const catId = catRes.results[0].id
-  const { results: posts } = await c.env.DB.prepare(
-    'SELECT slug, title, path, date, category_ids, translation_id, excerpt, sticky, length(content) AS body_len FROM posts WHERE lang = ? AND status="publish" ORDER BY sticky DESC, date DESC'
-  ).bind(lang).all()
-  // 英文分类: category_ids 为空, 通过翻译配对取中文 category_ids
-  let zhCatMap = {}
-  let zhAll = []
-  if (lang === 'en') {
-    const zhPosts = await c.env.DB.prepare(
-      'SELECT translation_id, category_ids, slug, title, path, date, featured_media, excerpt FROM posts WHERE lang = ? AND status="publish"'
-    ).bind('zh').all()
-    zhAll = zhPosts.results
-    for (const zp of zhPosts.results) {
-      if (zp.translation_id) zhCatMap[zp.translation_id] = zp.category_ids
-    }
-  }
-  // 英文分类: 收集该分类下的文章 (英文配对 + 中文原文 fallback)
-  let filtered = posts.filter(p => {
-    let catIds = p.category_ids
-    if (lang === 'en' && (!catIds || catIds === '[]') && p.translation_id && zhCatMap[p.translation_id]) {
-      catIds = zhCatMap[p.translation_id]
-    }
-    try { return (JSON.parse(catIds||'[]')||[]).includes(catId) }
-    catch { return false }
-  })
-  // 英文分类: 补充无英文翻译但属于该分类的中文文章 (TranslatePress 自动翻译)
-  if (lang === 'en') {
-    const enTids = new Set(filtered.filter(p=>p.translation_id).map(p=>p.translation_id))
-    const zhFallback = zhAll.filter(zp => {
-      // 已有英文配对的不重复加入
-      if (zp.translation_id && enTids.has(zp.translation_id)) return false
-      try { return (JSON.parse(zp.category_ids||'[]')||[]).includes(catId) }
-      catch { return false }
-    }).map(zp => ({
-      slug: zp.slug, title: zp.title, path: zp.path, date: zp.date, excerpt: zp.excerpt,
-      featured_media: zp.featured_media, translation_id: null, isZhFallback: true
-    }))
-    filtered = [...filtered, ...zhFallback]
-  }
-  // 与首页一致：date 混存 ISO 与可读格式，统一在 JS 里按 sticky/日期重排
-  filtered.sort((a, b) => (b.sticky||0) - (a.sticky||0) || dateTs(b.date) - dateTs(a.date))
-  // 分页: 每页 PER_PAGE 篇，与网格列数对齐
-  const perPage = PER_PAGE
-  const totalPages = Math.max(1, Math.ceil(filtered.length/perPage))
-  if (page > totalPages) return null
-  const pageItems = filtered.slice((page-1)*perPage, page*perPage)
-  // 分类 URL 前缀 (分页用)
   const catPath = childSlug ? `${parentSlug}/${childSlug}` : parentSlug
   const catUrl = `${base}${catPath}/`
-  // 渲染网格 (摘要配对回退在 renderPostCards 内批量处理)
-  const cards = await renderPostCards(c, lang, pageItems, { showZhTag: true })
+
+  const zhSelect = `
+    SELECT p.id, p.slug, p.title, p.path, p.date, p.modified, p.category_ids,
+           p.translation_id, p.excerpt, p.sticky, p.content, p.date_ts, p.modified_ts, 0 AS isZhFallback
+    FROM posts p JOIN post_categories pc ON pc.post_id = p.id
+    WHERE p.lang = 'zh' AND p.status = 'publish' AND pc.category_id = ?`
+  const enRealSelect = `
+    SELECT p.id, p.slug, p.title, p.path, p.date, p.modified,
+           COALESCE(NULLIF(p.category_ids, '[]'), z.category_ids, '[]') AS category_ids,
+           p.translation_id, p.excerpt, p.sticky, p.content, p.date_ts, p.modified_ts, 0 AS isZhFallback
+    FROM posts p
+    LEFT JOIN posts z ON z.id = p.translation_id AND z.lang = 'zh' AND z.status = 'publish'
+    WHERE p.lang = 'en' AND p.status = 'publish'
+      AND (EXISTS (SELECT 1 FROM post_categories pc WHERE pc.post_id = p.id AND pc.category_id = ?)
+        OR EXISTS (SELECT 1 FROM post_categories pcz WHERE pcz.post_id = z.id AND pcz.category_id = ?))`
+  const enFallbackSelect = `
+    SELECT z.id, z.slug, z.title, z.path, z.date, z.modified, z.category_ids,
+           NULL AS translation_id, z.excerpt, z.sticky, z.content, z.date_ts, z.modified_ts, 1 AS isZhFallback
+    FROM posts z JOIN post_categories pc ON pc.post_id = z.id
+    WHERE z.lang = 'zh' AND z.status = 'publish' AND pc.category_id = ?
+      AND NOT EXISTS (SELECT 1 FROM posts e WHERE e.id = z.translation_id AND e.lang = 'en' AND e.status = 'publish')`
+  const buildSource = (language) => language === 'zh'
+    ? { sql: zhSelect, params: [catId] }
+    : { sql: `${enRealSelect} UNION ALL ${enFallbackSelect}`, params: [catId, catId, catId] }
+  async function categoryTotal(language) {
+    const source = buildSource(language)
+    const row = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM (${source.sql})`).bind(...source.params).first()
+    return Number(row?.n || 0)
+  }
+
+  const total = await categoryTotal(lang)
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
+  if (page > totalPages) return null
+  const offset = (page - 1) * PER_PAGE
+  const source = buildSource(lang)
+  const posts = await queryAll(c,
+    `SELECT * FROM (${source.sql}) ORDER BY sticky DESC, COALESCE(date_ts, 0) DESC, id DESC LIMIT ? OFFSET ?`,
+    [...source.params, PER_PAGE, offset])
+
+  const cards = await renderPostCards(c, lang, posts, { showZhTag: true })
   const listHtml = cards
-    ? gridBlock(cards, pageItems.length)
+    ? gridBlock(cards, posts.length)
     : `<p class="empty-note">${lang==='en'?'Nothing filed under this category yet.':`这个分类下还没有文章。`}</p>`
-  // 分页导航 (统一组件)
-  const urlFor = (p) => p === 1 ? catUrl : `${catUrl}page/${p}/`
-  const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
-  // 分类名: 英文用映射表, 中文用数据库名; 子分类 slug 用于查找英文名
+  const urlFor = (n) => n === 1 ? catUrl : `${catUrl}page/${n}/`
+  const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true, lang })
   let name = catRes.results[0].name
   if (lang === 'en') {
     const nameSlug = childSlug || parentSlug
     name = CATEGORY_NAMES_EN[nameSlug] || name
   }
   const lead = categoryDescFor(lang, childSlug || parentSlug)
-  const sectionHead = `<div class="section-head"><h2>${lang==='en'?'Entries':'条目'}</h2><span class="count">${String(pageItems.length).padStart(2,'0')} / ${filtered.length}</span></div>`
+  const sectionHead = `<div class="section-head"><h2>${lang==='en'?'Entries':'条目'}</h2><span class="count">${posts.length} / ${total}</span></div>`
   const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(name)}</span></nav><h1 class="page-title">${esc(name)}</h1>${lead?`<p class="page-lead">${esc(lead)}</p>`:''}${sectionHead}${listHtml}${pagination}`
   const canonicalPath = page>1 ? `${catPath}/page/${page}/` : `${catPath}/`
   const canonicalUrl = `${SITE}${base}${canonicalPath}`
@@ -1137,44 +1244,42 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
       ? `Page ${page} of ${name}.`
       : `${name}第 ${page} 页。`)
     : (categoryDescFor(lang, childSlug || parentSlug) || `${name} category on VirtualCardx`)
-  return layout(lang, pageTitle, pageDesc, body, { noSidebar:true, path: canonicalPath, jsonld: categoryJsonld, cat: parentSlug })
-}
-
-// 日期排序键。posts.date 混存 ISO 与 "November 21, 2025" 两种格式，
-// SQL 的字符串排序会把后者排到最前，所以统一在 JS 里解析。
-function dateTs(d) {
-  const s = String(d || '')
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return Date.parse(s.slice(0, 10))
-  return Date.parse(s) || 0
+  const other = lang === 'en' ? 'zh' : 'en'
+  const otherPages = Math.max(1, Math.ceil(await categoryTotal(other) / PER_PAGE))
+  const otherBase = baseOf(other)
+  const altHref = page <= otherPages
+    ? (page > 1 ? `${otherBase}${catPath}/page/${page}/` : `${otherBase}${catPath}/`)
+    : ''
+  return layout(lang, pageTitle, pageDesc, body, {
+    noSidebar:true, path: canonicalPath, jsonld: categoryJsonld, cat: parentSlug, altHref,
+  })
 }
 
 // 首页 + 分页
 async function renderHomePage(c, lang, page) {
   const base = baseOf(lang)
-  const perPage = PER_PAGE
-  const offset = (page-1)*perPage
-  const COLS = 'slug, title, excerpt, path, date, category_ids, translation_id, sticky, length(content) AS body_len'
-  let results
-  if (lang === 'en') {
-    // 英文首页仅展示真实英文文章：日期格式文章，或有翻译配对的新版纯 slug 文章
-    const isRealArticle = (p) => /^\d{4}\/\d{2}\/\d{2}\//.test(p.path) || (!p.path.includes('/') && p.translation_id != null)
-    results = (await queryAll(c, `SELECT ${COLS} FROM posts WHERE lang = ? AND status = 'publish'`, ['en']))
-      .filter(isRealArticle)
-  } else {
-    results = await queryAll(c, `SELECT ${COLS} FROM posts WHERE lang = ? AND status = 'publish'`, [lang])
-  }
-  results.sort((a, b) => (b.sticky||0) - (a.sticky||0) || dateTs(b.date) - dateTs(a.date))
-  const total = results.length
-  const totalPages = Math.max(1, Math.ceil(total/perPage))
+  const offset = (page-1)*PER_PAGE
+  const COLS = 'slug, title, excerpt, content, path, date, modified, category_ids, translation_id, sticky'
+  // 英文首页只收真实英文文章：日期式 URL，或带翻译配对的纯 slug。
+  const enReal = "(path GLOB '????/??/??/*' OR (instr(path, '/') = 0 AND translation_id IS NOT NULL))"
+  const where = lang === 'en'
+    ? `lang = 'en' AND status = 'publish' AND ${enReal}`
+    : "lang = 'zh' AND status = 'publish'"
+  const total = Number((await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE ${where}`).first())?.n || 0)
+  const totalPages = Math.max(1, Math.ceil(total/PER_PAGE))
   if (page > totalPages) return null
-  const pageItems = results.slice(offset, offset+perPage)
+  const pageItems = await queryAll(c,
+    `SELECT ${COLS} FROM posts WHERE ${where}
+     ORDER BY sticky DESC, COALESCE(date_ts, 0) DESC, id DESC LIMIT ? OFFSET ?`,
+    [PER_PAGE, offset])
   const cards = await renderPostCards(c, lang, pageItems, { showCat: true })
-  // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? base : `${base}page/${p}/`
-  const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
-  // Hero：左边是标题和两条事实型入口，右边是一列数字。左右共用顶部那条细线。
-  // 首条是置顶文章，日期不一定最新 —— 这里要的是真正的最大日期
-  const latestDate = fmtDate(results.reduce((acc, p) => (dateTs(p.date) > dateTs(acc) ? p.date : acc), ''))
+  const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true, lang })
+  // “最近更新”同时考虑发布日期和修改时间，不能让置顶旧文冒充最新。
+  const latest = await c.env.DB.prepare(
+    `SELECT MAX(MAX(COALESCE(date_ts,0), COALESCE(modified_ts,0))) AS ts FROM posts WHERE ${where}`
+  ).first()
+  const latestDate = latest?.ts ? fmtDate(new Date(Number(latest.ts) * 1000).toISOString()) : ''
   const heroSection = page === 1 ? `
 <section class="hero">
   <div>
@@ -1223,10 +1328,18 @@ async function renderHomePage(c, lang, page) {
   const pageDesc = page>1
     ? (lang==='en' ? `Archive page ${page}.` : `文章归档第 ${page} 页。`)
     : (lang==='en' ? 'What each virtual card is like to use: fee maths, where KYC stalls, funding time, and what trips risk checks.' : '各家虚拟卡实际用起来是什么样：费率怎么算、KYC 卡在哪、充值多久到账、什么情况会被风控。')
+  const other = lang==='en' ? 'zh' : 'en'
+  const otherWhere = other === 'en'
+    ? `lang = 'en' AND status = 'publish' AND ${enReal}`
+    : "lang = 'zh' AND status = 'publish'"
+  const otherTotal = Number((await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM posts WHERE ${otherWhere}`).first())?.n || 0)
+  const otherPages = Math.max(1, Math.ceil(otherTotal/PER_PAGE))
+  const otherBase = baseOf(other)
+  const altHref = page <= otherPages ? (page>1 ? `${otherBase}page/${page}/` : otherBase) : ''
   return layout(lang,
     pageTitle,
     pageDesc,
-    body, { noSidebar: true, path: page>1?`page/${page}/`:'', jsonld: homeJsonld })
+    body, { noSidebar: true, path: page>1?`page/${page}/`:'', jsonld: homeJsonld, altHref })
 }
 
 // ============ 具体路由 ============
@@ -1281,28 +1394,63 @@ app.get('/en/virutal-credit-card/:rest*', (c) => {
 app.get('/en/virutal-credit-card', (c) => c.redirect('/en/virtual-credit-card/', 301))
 // /favicon.ico 与其他图标走 public/ 静态资源（Assets 在 Worker 之前响应），这里不再重定向。
 
-// sitemap（只收录最终规范 200 URL；旧路径/已合并分类由 301 承接，不能留在 sitemap）
+// sitemap：文章、真实静态页和数据库分类都从 D1 生成；旧路径不进入提交列表。
 app.get('/sitemap.xml', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT path, lang, modified, translation_id FROM posts WHERE status = "publish"').all()
-  const canonicalPosts = results.filter(p => {
+  const posts = await queryAll(c,
+    "SELECT path, lang, modified, date, translation_id FROM posts WHERE status = 'publish'", [])
+  const canonicalPosts = posts.filter(p => {
     const decodedPath = '/' + (p.lang === 'en' ? 'en/' : '') + p.path.replace(/^\/+|\/+$/g, '')
-    if (OLD_URL_REDIRECTS[decodedPath]) return false
+    if (OLD_URL_REDIRECTS[decodedPath] || BLOG_MOVED.has(p.path)) return false
     const postPath = decodedPath.replace(/^\/en\//, '').replace(/^\//, '')
-    // 非日期 URL 只保留新版纯 slug 且必须属于正式中英配对；排除旧 Page/分类占位记录
-    if (!/^\d{4}\/\d{2}\/\d{2}\//.test(p.path) && (p.path.includes('/') || p.translation_id == null)) return false
+    // 非日期路径只接受单段纯 slug；多段路径通常是被合并的分类/页面占位。
+    if (!/^\d{4}\/\d{2}\/\d{2}\//.test(p.path) && p.path.includes('/')) return false
     return !OLD_CAT_REDIRECTS.some(([from]) => postPath === from.slice(1) || postPath.startsWith(from.slice(1) + '/'))
   })
   const postUrls = canonicalPosts.map(p => {
-    const base = p.lang==='en' ? '/en/' : '/'
-    const lastmod = (p.modified||'').slice(0,10)
-    return `<url><loc>${SITE}${base}${p.path}/</loc>${lastmod?`<lastmod>${lastmod}</lastmod>`:''}</url>`
+    const loc = `${SITE}${p.lang==='en' ? '/en/' : '/'}${p.path.replace(/^\/+|\/+$/g, '')}/`
+    const lastmod = fmtDate(p.modified) || fmtDate(p.date)
+    return `<url><loc>${xmlEsc(encodeURI(loc))}</loc>${lastmod?`<lastmod>${lastmod}</lastmod>`:''}</url>`
   }).join('')
-  const staticSlugs = ['about','contact','terms','privacy-policy','virtual-credit-card','cryptocurrency','cross-border-collections']
-  const staticUrls = ['/', '/en/', ...staticSlugs.flatMap(slug => [`/${slug}/`, `/en/${slug}/`])]
+  const pageRows = await queryAll(c, 'SELECT slug, lang FROM pages', [])
+  const pageUrls = pageRows
+    .filter(p => p.slug && !p.slug.includes('/'))
+    .map(p => `<url><loc>${xmlEsc(`${SITE}${p.lang==='en' ? '/en/' : '/'}${p.slug}/`)}</loc></url>`)
+    .join('')
+  const catRows = await queryAll(c, 'SELECT id, slug, parent FROM categories', [])
+  const byId = new Map(catRows.map(cat => [cat.id, cat]))
+  const catUrls = catRows.flatMap(cat => {
+    const parent = cat.parent ? byId.get(cat.parent) : null
+    const path = parent ? `${parent.slug}/${cat.slug}` : cat.slug
+    return ['zh', 'en'].map(lang => `<url><loc>${xmlEsc(`${SITE}${lang==='en' ? '/en/' : '/'}${path}/`)}</loc></url>`)
+  }).join('')
+  const staticUrls = ['/', '/en/']
     .map(path => `<url><loc>${SITE}${path}</loc></url>`).join('')
-  return c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${staticUrls}${postUrls}</urlset>`,
-    { headers: { 'Content-Type': 'application/xml' } })
+  return c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${staticUrls}${pageUrls}${catUrls}${postUrls}</urlset>`,
+    { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' } })
 })
+
+// RSS：语言独立的订阅入口，日期与链接都经过规范化和 XML 转义。
+async function feedXml(c, lang) {
+  const real = "(path GLOB '????/??/??/*' OR (instr(path, '/') = 0 AND translation_id IS NOT NULL))"
+  const where = lang === 'en'
+    ? `lang = 'en' AND status = 'publish' AND ${real}`
+    : "lang = 'zh' AND status = 'publish'"
+  const rows = await queryAll(c,
+    `SELECT title, excerpt, path, date, modified, date_ts, modified_ts FROM posts WHERE ${where}
+     ORDER BY COALESCE(date_ts, 0) DESC LIMIT 30`, [])
+  const base = baseOf(lang)
+  const items = rows.map(p => {
+    const link = `${SITE}${base}${p.path.replace(/^\/+|\/+$/g, '')}/`
+    const ts = Number(p.modified_ts || p.date_ts || 0)
+    const pubDate = ts ? new Date(ts * 1000).toUTCString() : ''
+    const desc = excerptText(p.excerpt, 300)
+    return `<item><title>${xmlEsc(p.title)}</title><link>${xmlEsc(link)}</link><guid isPermaLink="true">${xmlEsc(link)}</guid>${pubDate?`<pubDate>${pubDate}</pubDate>`:''}${desc?`<description>${xmlEsc(desc)}</description>`:''}</item>`
+  }).join('')
+  return c.body(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>VirtualCardx</title><link>${SITE}${base}</link><description>Virtual card, cross-border payment and crypto card field notes.</description><language>${lang==='en'?'en':'zh-CN'}</language>${items}</channel></rss>`,
+    { headers: { 'Content-Type': 'application/rss+xml; charset=utf-8', 'Cache-Control': 'public, max-age=1800' } })
+}
+app.get('/feed.xml', (c) => feedXml(c, 'zh'))
+app.get('/en/feed.xml', (c) => feedXml(c, 'en'))
 
 // robots
 app.get('/robots.txt', (c) => c.text('User-agent: *\nAllow: /\nSitemap: ' + SITE + '/sitemap.xml'))
@@ -1310,10 +1458,10 @@ app.get('/robots.txt', (c) => c.text('User-agent: *\nAllow: /\nSitemap: ' + SITE
 // llms.txt — AEO:面向 LLM 爬虫的站点导览(markdown 约定)
 app.get('/llms.txt', async (c) => {
   const { results } = await c.env.DB.prepare(
-    "SELECT path, title, excerpt FROM posts WHERE status='publish' AND lang='zh' ORDER BY date DESC LIMIT 40"
+    "SELECT path, title, excerpt FROM posts WHERE status='publish' AND lang='zh' ORDER BY COALESCE(date_ts, 0) DESC LIMIT 40"
   ).all()
   const { results: enPosts } = await c.env.DB.prepare(
-    "SELECT path, title, excerpt FROM posts WHERE status='publish' AND lang='en' ORDER BY date DESC LIMIT 40"
+    "SELECT path, title, excerpt FROM posts WHERE status='publish' AND lang='en' ORDER BY COALESCE(date_ts, 0) DESC LIMIT 40"
   ).all()
   const lines = []
   lines.push('# VirtualCardX')
@@ -1363,8 +1511,40 @@ function apiAuth(c) {
 function apiJson(data, status=200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
   })
+}
+function scheduleCachePurge(c, paths) {
+  const unique = [...new Set(paths.filter(Boolean))]
+  if (!unique.length || typeof caches === 'undefined' || !caches.default) return
+  const task = Promise.all(unique.map(path => caches.default.delete(new Request(`${SITE}${path}`))))
+    .catch(e => console.error(JSON.stringify({ event: 'cache_purge_failed', message: e?.message || 'unknown' })))
+  try { c.executionCtx.waitUntil(task) } catch { task }
+}
+function validatePostBody(body, { partial = false } = {}) {
+  if (!partial || body.title !== undefined) {
+    if (typeof body.title !== 'string' || !body.title.trim() || body.title.length > 220) return 'title must be 1-220 characters'
+  }
+  if (!partial || body.content !== undefined) {
+    if (body.content !== undefined && typeof body.content !== 'string') return 'content must be a string'
+  }
+  if (body.lang !== undefined && !['zh', 'en'].includes(body.lang)) return 'lang must be zh or en'
+  if (body.status !== undefined && !['publish', 'draft'].includes(body.status)) return 'status must be publish or draft'
+  if (body.path !== undefined && !validPostPath(body.path)) return 'invalid path'
+  if (body.slug !== undefined && body.slug !== null && (typeof body.slug !== 'string' || body.slug.length > 200)) return 'invalid slug'
+  if (body.excerpt !== undefined && body.excerpt !== null && typeof body.excerpt !== 'string') return 'excerpt must be a string'
+  if (body.date !== undefined && body.date !== null && !fmtDate(body.date)) return 'invalid date'
+  for (const key of ['category_ids', 'tag_ids']) {
+    if (body[key] !== undefined && (!Array.isArray(body[key]) || body[key].some(n => !Number.isInteger(n) || n < 0))) {
+      return `${key} must be an array of non-negative integers`
+    }
+  }
+  if (body.translation_id !== undefined && body.translation_id !== null &&
+      (!Number.isInteger(body.translation_id) || body.translation_id < 1)) return 'invalid translation_id'
+  if (body.featured_media !== undefined && body.featured_media !== null &&
+      (!Number.isInteger(body.featured_media) || body.featured_media < 1)) return 'invalid featured_media'
+  if (body.sticky !== undefined && !Number.isFinite(body.sticky)) return 'invalid sticky'
+  return ''
 }
 function slugify(s) {
   return String(s||'').toLowerCase().trim()
@@ -1372,13 +1552,15 @@ function slugify(s) {
     .replace(/^-+|-+$/g, '')
 }
 
-// GET /api/health — 健康检查
+// GET /api/health — 健康检查（不向匿名请求泄露内部错误）
 app.get('/api/health', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').all()
+    if (c.env.R2?.head) await c.env.R2.head('__healthcheck__')
     return apiJson({ ok: true, service: 'vcx-new', time: new Date().toISOString() })
   } catch (e) {
-    return apiJson({ ok: false, error: e.message }, 500)
+    console.error(JSON.stringify({ event: 'health_failed', message: e?.message || 'unknown' }))
+    return apiJson({ ok: false, error: 'Service unavailable' }, 503)
   }
 })
 
@@ -1387,17 +1569,36 @@ app.get('/api/posts', async (c) => {
   const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
   const lang = c.req.query('lang') || 'zh'
   const status = c.req.query('status') || 'publish'
-  const limit = Math.min(parseInt(c.req.query('limit')||'20')||20, 100)
-  const offset = parseInt(c.req.query('offset')||'0')||0
-  const q = (c.req.query('q')||'').trim()
-  let where = 'lang = ? AND status = ?'
+  if (!['zh', 'en'].includes(lang) || !['publish', 'draft'].includes(status)) {
+    return apiJson({ error: 'Invalid lang or status' }, 400)
+  }
+  const requestedLimit = Number(c.req.query('limit') || 20)
+  const requestedOffset = Number(c.req.query('offset') || 0)
+  if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 100 ||
+      !Number.isInteger(requestedOffset) || requestedOffset < 0) {
+    return apiJson({ error: 'limit must be 1-100; offset must be >= 0' }, 400)
+  }
+  const q = normalizeQuery(c.req.query('q') || '')
+  let from = 'posts p'
+  let where = 'p.lang = ? AND p.status = ?'
   const params = [lang, status]
-  if (q) { where += ' AND (title LIKE ? OR content LIKE ?)'; params.push(`%${q}%`, `%${q}%`) }
-  const total = (await c.env.DB.prepare(`SELECT COUNT(*) as n FROM posts WHERE ${where}`).bind(...params).all()).results[0].n
+  let order = 'p.sticky DESC, COALESCE(p.date_ts, 0) DESC'
+  if (q) {
+    if ([...q].length >= 3) {
+      from = 'posts p JOIN posts_fts ON posts_fts.rowid = p.id'
+      where += ' AND posts_fts MATCH ?'
+      params.push(ftsPhrase(q))
+      order = 'bm25(posts_fts), p.sticky DESC, COALESCE(p.date_ts, 0) DESC'
+    } else {
+      where += " AND (p.title LIKE ? ESCAPE '\\' OR p.content LIKE ? ESCAPE '\\')"
+      params.push(likePattern(q), likePattern(q))
+    }
+  }
+  const total = (await c.env.DB.prepare(`SELECT COUNT(*) as n FROM ${from} WHERE ${where}`).bind(...params).all()).results[0].n
   const { results } = await c.env.DB.prepare(
-    `SELECT id, lang, slug, title, excerpt, path, date, modified, status, featured_media, category_ids, tag_ids, translation_id, sticky FROM posts WHERE ${where} ORDER BY sticky DESC, date DESC LIMIT ? OFFSET ?`
-  ).bind(...params, limit, offset).all()
-  return apiJson({ total, limit, offset, posts: results })
+    `SELECT p.id, p.lang, p.slug, p.title, p.excerpt, p.path, p.date, p.modified, p.status, p.featured_media, p.category_ids, p.tag_ids, p.translation_id, p.sticky FROM ${from} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`
+  ).bind(...params, requestedLimit, requestedOffset).all()
+  return apiJson({ total, limit: requestedLimit, offset: requestedOffset, posts: results })
 })
 
 // GET /api/posts/:id — 单篇详情
@@ -1413,42 +1614,52 @@ app.get('/api/posts/:id', async (c) => {
 // body: { lang, title, content, slug?, excerpt?, date?, featured_media?, category_ids?, tag_ids?, translation_id?, status? }
 app.post('/api/posts', async (c) => {
   const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
-  let body
-  try { body = await c.req.json() } catch { return apiJson({ error: 'Invalid JSON' }, 400) }
-  const lang = body.lang === 'en' ? 'en' : 'zh'
-  if (!body.title) return apiJson({ error: 'title required' }, 400)
+  const parsed = await jsonBody(c, 5_000_000)
+  if (parsed.error) return apiJson({ error: parsed.error }, parsed.status)
+  const body = parsed.body
+  const invalid = validatePostBody(body)
+  if (invalid) return apiJson({ error: invalid }, 400)
+  const lang = body.lang || 'zh'
   const slug = body.slug || slugify(body.title)
-  // 自动生成 path: 纯 slug (2026-08-20 起新文章不带日期段)
-  let path = body.path
-  if (!path) {
-    path = slug
-  }
-  // slug 唯一性: 同 lang+path 冲突则报错
+  const path = body.path || slug
+  if (!validPostPath(path)) return apiJson({ error: 'invalid path' }, 400)
   const dup = await c.env.DB.prepare('SELECT id FROM posts WHERE path = ? AND lang = ?').bind(path, lang).all()
   if (dup.results.length) return apiJson({ error: `Path already exists: ${path}`, existingId: dup.results[0].id }, 409)
-  const date = body.date || new Date().toISOString().slice(0,10)
-  const r = await c.env.DB.prepare(
-    'INSERT INTO posts (lang, slug, title, content, excerpt, path, date, modified, status, featured_media, category_ids, tag_ids, translation_id, sticky) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-  ).bind(
-    lang, slug, body.title, body.content||'', body.excerpt||'', path, date,
-    new Date().toISOString(), body.status||'publish',
-    body.featured_media||null, JSON.stringify(body.category_ids||[]), JSON.stringify(body.tag_ids||[]),
-    body.translation_id||null, Number.isFinite(body.sticky) ? body.sticky : 0
-  ).run()
-  return apiJson({ ok: true, id: r.meta.last_row_id, path, slug, url: `/${path}/` }, 201)
+  const date = fmtDate(body.date) || new Date().toISOString().slice(0,10)
+  let r
+  try {
+    r = await c.env.DB.prepare(
+      'INSERT INTO posts (lang, slug, title, content, excerpt, path, date, modified, status, featured_media, category_ids, tag_ids, translation_id, sticky) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).bind(
+      lang, slug, body.title, body.content||'', body.excerpt||'', path, date,
+      new Date().toISOString(), body.status||'publish',
+      body.featured_media||null, JSON.stringify(body.category_ids||[]), JSON.stringify(body.tag_ids||[]),
+      body.translation_id||null, Number.isFinite(body.sticky) ? body.sticky : 0
+    ).run()
+  } catch (e) {
+    if (/UNIQUE constraint/i.test(e?.message || '')) return apiJson({ error: `Path already exists: ${path}` }, 409)
+    throw e
+  }
+  const publicPath = `${baseOf(lang)}${path}/`
+  scheduleCachePurge(c, ['/', '/en/', publicPath])
+  return apiJson({ ok: true, id: r.meta.last_row_id, path, slug, url: publicPath }, 201)
 })
 
 // PUT /api/posts/:id — 更新文章
 app.put('/api/posts/:id', async (c) => {
   const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
-  const id = parseInt(c.req.param('id'))
-  let body
-  try { body = await c.req.json() } catch { return apiJson({ error: 'Invalid JSON' }, 400) }
+  const id = parseInt(c.req.param('id'), 10)
+  if (!Number.isInteger(id) || id < 1) return apiJson({ error: 'invalid id' }, 400)
+  const parsed = await jsonBody(c, 5_000_000)
+  if (parsed.error) return apiJson({ error: parsed.error }, parsed.status)
+  const body = parsed.body
+  const invalid = validatePostBody(body, { partial: true })
+  if (invalid) return apiJson({ error: invalid }, 400)
   const { results } = await c.env.DB.prepare('SELECT id, path, lang FROM posts WHERE id = ?').bind(id).all()
   if (!results.length) return apiJson({ error: 'Post not found' }, 404)
-  // path 变更时查重 (与 POST 一致), 防止把文章改到已有 URL 上
-  if (body.path !== undefined && body.path !== results[0].path) {
-    const dup = await c.env.DB.prepare('SELECT id FROM posts WHERE path = ? AND lang = ? AND id != ?').bind(body.path, results[0].lang, id).all()
+  const before = results[0]
+  if (body.path !== undefined && body.path !== before.path) {
+    const dup = await c.env.DB.prepare('SELECT id FROM posts WHERE path = ? AND lang = ? AND id != ?').bind(body.path, before.lang, id).all()
     if (dup.results.length) return apiJson({ error: `Path already exists: ${body.path}`, existingId: dup.results[0].id }, 409)
   }
   const fields = ['title','content','excerpt','slug','path','date','status','featured_media','category_ids','tag_ids','translation_id','sticky']
@@ -1456,26 +1667,38 @@ app.put('/api/posts/:id', async (c) => {
   for (const f of fields) {
     if (body[f] !== undefined) {
       sets.push(`${f} = ?`)
-      // null 表示清空字段 (SQL NULL), 不能走 JSON.stringify 变成字符串 "null"
-      params.push(body[f] === null ? null : (typeof body[f] === 'object' ? JSON.stringify(body[f]) : body[f]))
+      if (body[f] === null) params.push(null)
+      else if (f === 'date') params.push(fmtDate(body[f]))
+      else if (typeof body[f] === 'object') params.push(JSON.stringify(body[f]))
+      else params.push(body[f])
     }
-  }
-  if (body.category_ids && Array.isArray(body.category_ids)) {
-    // category_ids 已作为对象处理, 上面 JSON.stringify 覆盖
   }
   if (!sets.length) return apiJson({ error: 'No fields to update' }, 400)
   sets.push('modified = ?'); params.push(new Date().toISOString())
   params.push(id)
-  await c.env.DB.prepare(`UPDATE posts SET ${sets.join(', ')} WHERE id = ?`).bind(...params).run()
-  return apiJson({ ok: true, id })
+  try {
+    await c.env.DB.prepare(`UPDATE posts SET ${sets.join(', ')} WHERE id = ?`).bind(...params).run()
+  } catch (e) {
+    if (/UNIQUE constraint/i.test(e?.message || '')) return apiJson({ error: 'Path already exists' }, 409)
+    throw e
+  }
+  const newPath = body.path !== undefined ? body.path : before.path
+  const oldUrl = `${baseOf(before.lang)}${before.path}/`
+  const newUrl = `${baseOf(before.lang)}${newPath}/`
+  scheduleCachePurge(c, ['/', '/en/', oldUrl, newUrl])
+  return apiJson({ ok: true, id, url: newUrl })
 })
 
 // DELETE /api/posts/:id — 删除文章
 app.delete('/api/posts/:id', async (c) => {
   const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
-  const id = parseInt(c.req.param('id'))
+  const id = parseInt(c.req.param('id'), 10)
+  if (!Number.isInteger(id) || id < 1) return apiJson({ error: 'invalid id' }, 400)
+  const existing = await c.env.DB.prepare('SELECT path, lang FROM posts WHERE id = ?').bind(id).first()
+  if (!existing) return apiJson({ error: 'Post not found' }, 404)
   const r = await c.env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(id).run()
   if (!r.meta.changes) return apiJson({ error: 'Post not found' }, 404)
+  scheduleCachePurge(c, ['/', '/en/', `${baseOf(existing.lang)}${existing.path}/`])
   return apiJson({ ok: true, deleted: id })
 })
 
@@ -1489,12 +1712,22 @@ app.get('/api/categories', async (c) => {
 // POST /api/categories — 新建分类
 app.post('/api/categories', async (c) => {
   const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
-  let body
-  try { body = await c.req.json() } catch { return apiJson({ error: 'Invalid JSON' }, 400) }
-  if (!body.name) return apiJson({ error: 'name required' }, 400)
+  const parsed = await jsonBody(c, 100_000)
+  if (parsed.error) return apiJson({ error: parsed.error }, parsed.status)
+  const body = parsed.body
+  if (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120) return apiJson({ error: 'name must be 1-120 characters' }, 400)
   const slug = body.slug || slugify(body.name)
-  const r = await c.env.DB.prepare('INSERT INTO categories (name, slug, parent, description, count) VALUES (?,?,?,?,0)')
-    .bind(body.name, slug, body.parent||0, body.description||'').run()
+  if (typeof slug !== 'string' || !/^[a-z0-9][a-z0-9-]{0,120}$/i.test(slug)) return apiJson({ error: 'invalid slug' }, 400)
+  if (body.parent !== undefined && body.parent !== 0 && (!Number.isInteger(body.parent) || body.parent < 1)) return apiJson({ error: 'invalid parent' }, 400)
+  let r
+  try {
+    r = await c.env.DB.prepare('INSERT INTO categories (name, slug, parent, description, count) VALUES (?,?,?,?,0)')
+      .bind(body.name, slug, body.parent||0, body.description||'').run()
+  } catch (e) {
+    if (/UNIQUE constraint/i.test(e?.message || '')) return apiJson({ error: `Category slug already exists: ${slug}` }, 409)
+    throw e
+  }
+  scheduleCachePurge(c, ['/', '/en/', `/sitemap.xml`])
   return apiJson({ ok: true, id: r.meta.last_row_id, slug }, 201)
 })
 
@@ -1514,39 +1747,51 @@ function newMediaId() {
 // POST /api/media — 上传媒体 (JSON: { filename, dataBase64, mimeType, alt?, width?, height? })
 app.post('/api/media', async (c) => {
   const a = apiAuth(c); if (!a.ok) return apiJson({ error: a.err }, 401)
-  let body
-  try { body = await c.req.json() } catch { return apiJson({ error: 'Invalid JSON' }, 400) }
+  const parsed = await jsonBody(c, 14_500_000)
+  if (parsed.error) return apiJson({ error: parsed.error }, parsed.status)
+  const body = parsed.body
   if (!body.filename || !body.dataBase64) return apiJson({ error: 'filename and dataBase64 required' }, 400)
   if (typeof body.dataBase64 !== 'string' || body.dataBase64.length > 14_000_000) {
     return apiJson({ error: 'File too large: max ~10MB (dataBase64)' }, 413)
   }
-  const mime = String(body.mimeType || '')
-  if (mime && !/^image\//i.test(mime)) return apiJson({ error: 'Only image/* uploads are accepted' }, 415)
+  const declared = String(body.mimeType || '')
+  if (declared && !/^image\/(png|jpeg|webp|gif)$/i.test(declared)) {
+    return apiJson({ error: 'Only PNG, JPEG, WebP or GIF uploads are accepted' }, 415)
+  }
   let buf
   try { buf = Uint8Array.from(atob(body.dataBase64), ch => ch.charCodeAt(0)) }
   catch { return apiJson({ error: 'dataBase64 is not valid base64' }, 400) }
-  // 去掉路径分隔符，避免 R2 key 逃出 media/ 前缀
-  const filename = String(body.filename).replace(/[\\/]+/g, '_').slice(0, 160)
-  const dim = (v) => (Number.isFinite(v) && v > 0 ? Math.round(v) : null)
-  // 先占 id (主键唯一约束保证不撞)，再写 R2；写 R2 失败则回滚 DB 记录，避免留下死链
+  const detected = imageType(buf)
+  if (!detected) return apiJson({ error: 'File content is not a supported image' }, 415)
+  if (declared && declared.toLowerCase().replace('image/jpg', 'image/jpeg') !== detected.mime) {
+    return apiJson({ error: 'mimeType does not match file content' }, 415)
+  }
+  const filename = safeImageFilename(body.filename, detected.ext)
+  const dim = (v) => (Number.isInteger(v) && v > 0 ? Math.round(v) : null)
+  // 先占 id，再写 R2；只有主键冲突才重试，数据库故障不能被误报成“id 用完了”。
   let id = null
   for (let attempt = 0; attempt < 5 && id === null; attempt++) {
     const candidate = newMediaId()
     try {
       await c.env.DB.prepare('INSERT INTO media (id, filename, path, mime_type, alt, width, height) VALUES (?,?,?,?,?,?,?)')
-        .bind(candidate, filename, `media/${candidate}-${filename}`, mime, body.alt || '', dim(body.width), dim(body.height)).run()
+        .bind(candidate, filename, `media/${candidate}-${filename}`, detected.mime, body.alt || '', dim(body.width), dim(body.height)).run()
       id = candidate
-    } catch {
-      if (attempt === 4) return apiJson({ error: 'Could not allocate a unique media id' }, 500)
+    } catch (e) {
+      if (!/UNIQUE constraint/i.test(e?.message || '')) throw e
     }
   }
-  // DB path 必须带 media/ 前缀: 渲染层 src="/${path}" 直接拼 URL (2026-08-16 修复)
+  if (id === null) return apiJson({ error: 'Could not allocate a unique media id' }, 500)
   const path = `media/${id}-${filename}`
   try {
-    await c.env.R2.put(path, buf, { httpMetadata: { contentType: mime || 'application/octet-stream' } })
+    await c.env.R2.put(path, buf, { httpMetadata: { contentType: detected.mime } })
   } catch (e) {
-    await c.env.DB.prepare('DELETE FROM media WHERE id = ?').bind(id).run().catch(() => {})
-    return apiJson({ error: 'R2 upload failed: ' + (e && e.message ? e.message : 'unknown') }, 502)
+    try {
+      await c.env.DB.prepare('DELETE FROM media WHERE id = ?').bind(id).run()
+    } catch (rollbackError) {
+      console.error(JSON.stringify({ event: 'media_rollback_failed', id, error: rollbackError?.message || 'unknown' }))
+    }
+    console.error(JSON.stringify({ event: 'media_upload_failed', id, error: e?.message || 'unknown' }))
+    return apiJson({ error: 'R2 upload failed' }, 502)
   }
   return apiJson({ ok: true, id, path, url: `/${path}` }, 201)
 })
@@ -1789,7 +2034,9 @@ app.get('*', async (c) => {
 
   // 旧中文URL 301 (老站 WP 中文 path -> 新站规范 URL, 保留 Bing/GSC 流量)
   {
-    const decodedPath = '/' + decodeURIComponent(c.req.path).replace(/^\/+|\/+$/g, '')
+    const decoded = safeDecode(c.req.path)
+    if (decoded === null) return notFoundHtml(c, lang)
+    const decodedPath = '/' + decoded.replace(/^\/+|\/+$/g, '')
     const target = OLD_URL_REDIRECTS[decodedPath]
     if (target) {
       return c.redirect(/\.[a-z0-9]+$/i.test(target) ? target : `${target}/`, 301)
@@ -1804,9 +2051,11 @@ app.get('*', async (c) => {
   }
 
   // ?s= 搜索
-  const s = c.req.query('s')
-  if (s && s.trim()) {
-    return c.html(await handleSearch(c, lang, s.trim()))
+  const s = normalizeQuery(c.req.query('s') || '')
+  if (s) {
+    const page = parsePage(c.req.query('page') || '1')
+    if (page === null) return notFoundHtml(c, lang)
+    return handleSearch(c, lang, s, page)
   }
 
   // 首页
@@ -1834,7 +2083,12 @@ app.get('*', async (c) => {
         {'@type':'ListItem',position:2,name:pg.title,item:pageUrl}
       ]}
     ]}
-    return c.html(layout(lang, `${pg.title} - VirtualCardx`, pageDescFor(lang, pg.slug) || pg.title, body, { noSidebar:true, path: `${pg.slug}/`, jsonld:pageJsonld }))
+    const other = lang === 'en' ? 'zh' : 'en'
+    const twin = await c.env.DB.prepare('SELECT slug FROM pages WHERE slug = ? AND lang = ? LIMIT 1').bind(pg.slug, other).first()
+    const altHref = twin ? `${baseOf(other)}${twin.slug}/` : ''
+    return c.html(layout(lang, `${pg.title} - VirtualCardx`, pageDescFor(lang, pg.slug) || pg.title, body, {
+      noSidebar:true, path: `${pg.slug}/`, jsonld:pageJsonld, altHref,
+    }))
   }
 
   // 分类页: /slug/, /parent/child/, /slug/page/N/, /parent/child/page/N/
@@ -1883,7 +2137,7 @@ app.get('*', async (c) => {
           const recent = await recentPosts(c, 'en')
           const plainZh = String(zp.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '')
           const readMinZh = Math.max(1, Math.round(plainZh.length / 400))
-          const body = `<article class="article">
+          const body = `<article class="article" lang="zh">
             <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/en/">Home</a></nav>
             <div class="article-header">
               <h1>${esc(zp.title)}</h1>
@@ -1895,19 +2149,24 @@ app.get('*', async (c) => {
                 <span>${readMinZh} min read</span>
               </div>
               <dl class="only-mobile">
-                <dt>Updated</dt><dd>${esc(fmtDate(zp.date))}</dd>
+                <dt>Updated</dt><dd>${esc(fmtDate(zp.modified) || fmtDate(zp.date))}</dd>
                 <dt>Source</dt><dd>Chinese original</dd>
                 <dt>Read</dt><dd>${readMinZh} min</dd>
               </dl>
             </div>
             <div class="content">${content}</div>
             <div class="article-footer">
-              <a class="lang-toggle" href="/${postPath}/">阅读中文版</a>
+              <a class="lang-toggle" href="/${postPath}/" hreflang="zh">阅读中文版</a>
             </div>
           </article>`
+          // 未翻译内容不能伪装成英文页面：canonical 指回中文原文，并排除索引。
           return c.html(layout('en', `${zp.title} - VirtualCardx`,
-            (zp.excerpt||'').replace(/<[^>]+>/g,'').slice(0,150), body,
-            { recentPosts: recent, path: `${postPath}/` }))
+            excerptText(zp.excerpt || zp.content, 150), body,
+            {
+              recentPosts: recent, path: `${postPath}/`, canonical: `/${postPath}/`,
+              noindex: true, switchHref: `/${postPath}/`, ogLocale: 'zh_CN',
+              ogType: 'article',
+            }))
         }
       }
       // 未命中: 不在此 404, 穿透到下方 WP 遗留兜底 301 / 最终 404
@@ -1916,19 +2175,20 @@ app.get('*', async (c) => {
     const p = results[0]
     const base = baseOf(lang)
     const path = postPath
-    const altHref = lang==='zh' ? `/en/${path}/` : `/${path}/`
-    const curHref = lang==='zh' ? `/${path}/` : `/en/${path}/`
-    const altLang = lang==='zh' ? 'en' : 'zh'
-    let content = p.content
-    content = await rewriteImages(c, content, p.title)
-    // 特色图: 自身的; 英文无图时通过 translation_id 取配对中文文章的特色图
-    let fm = p.featured_media
-    if (!fm && p.translation_id) {
-      const { results: pairRes } = await c.env.DB.prepare(
-        'SELECT featured_media FROM posts WHERE translation_id = ? AND featured_media IS NOT NULL AND featured_media != 0 AND id != ? LIMIT 1'
-      ).bind(p.translation_id, p.id).all()
-      if (pairRes.length) fm = pairRes[0].featured_media
+    // 只有明确的配对记录才生成语言切换和 hreflang；不能按 URL 猜。
+    let pair = null
+    if (p.translation_id) {
+      pair = await c.env.DB.prepare(
+        "SELECT id, path, lang, featured_media FROM posts WHERE id = ? AND status = 'publish' LIMIT 1"
+      ).bind(p.translation_id).first()
     }
+    const altHref = pair ? `${baseOf(pair.lang)}${pair.path}/` : ''
+    const altLang = pair?.lang || (lang==='zh' ? 'en' : 'zh')
+    // 特色图: 自身的; 无图时取配对文章的图。
+    let fm = p.featured_media
+    if (!fm && pair?.featured_media) fm = pair.featured_media
+    let content = p.content
+    content = await rewriteImages(c, content, p.title, { firstPriority: !fm })
     let heroHtml = ''
     let ogImageTag = ''
     let articleImage = ''
@@ -1936,49 +2196,51 @@ app.get('*', async (c) => {
       const { results: mRes } = await c.env.DB.prepare('SELECT path, alt, width, height FROM media WHERE id = ?').bind(fm).all()
       if (mRes.length) {
         const mp = mRes[0]
-        articleImage = `${SITE}/${mp.path}`
-        heroHtml = `<img class="article-hero" src="/${mp.path}" alt="${esc(mp.alt || p.title)}"${mp.width&&mp.height?` width="${mp.width}" height="${mp.height}"`:''} fetchpriority="high" decoding="async">`
-        ogImageTag = `<meta property="og:image" content="${SITE}/${mp.path}"><meta property="og:image:alt" content="${esc(mp.alt || p.title)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${SITE}/${mp.path}">`
+        const imageUrl = `${SITE}/${mp.path}`
+        const imageAlt = mp.alt || p.title
+        articleImage = imageUrl
+        heroHtml = `<img class="article-hero" src="/${esc(mp.path)}" alt="${esc(imageAlt)}"${mp.width&&mp.height?` width="${mp.width}" height="${mp.height}"`:''} fetchpriority="high" decoding="async">`
+        ogImageTag = `<meta property="og:image" content="${esc(imageUrl)}">${mp.width&&mp.height?`<meta property="og:image:width" content="${mp.width}"><meta property="og:image:height" content="${mp.height}">`:''}<meta property="og:image:alt" content="${esc(imageAlt)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(imageUrl)}"><meta name="twitter:image:alt" content="${esc(imageAlt)}">`
       }
     }
     const recent = await recentPosts(c, lang)
     const articleUrl = `${SITE}${baseOf(lang)}${path}/`
-    const articleDesc = (p.excerpt||'').replace(/<[^>]+>/g,'').slice(0,150)
-    const publishedDate = (p.date || '').slice(0,10)
-    const storedModifiedDate = (p.modified || '').slice(0,10)
-    // Imported records can carry a stale modified timestamp. Schema dates must never run backwards.
-    const modifiedDate = storedModifiedDate >= publishedDate ? storedModifiedDate : publishedDate
-    // 正文字数：只算可见文本，用来给"读多久"这个事实
-    const plain = String(p.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '')
-    const wordCount = plain.length
+    const articleDesc = excerptText(p.excerpt, 200) || excerptText(p.content, 150)
+    const publishedDate = fmtDate(p.date)
+    const storedModifiedDate = fmtDate(p.modified)
+    const modifiedDate = dateTs(storedModifiedDate) >= dateTs(publishedDate) && storedModifiedDate
+      ? storedModifiedDate : publishedDate
+    const wordCount = plainText(content).length
     const readMin = Math.max(1, Math.round(wordCount / 400))
-    // 分类名（一篇文章通常挂 1 个），同时拿 slug 给面包屑做链接
-    let catLabel = ''
-    let catHref = ''
+    // 分类名与链接逐个生成；英文按 slug 映射，不能把中文名直接塞进英文页面。
+    let catItems = []
     try {
       const ids = JSON.parse(p.category_ids || '[]') || []
       if (ids.length) {
-        const { results: cr } = await c.env.DB.prepare(
-          `SELECT name, slug FROM categories WHERE id IN (${ph(ids.length)})`
-        ).bind(...ids).all()
-        catLabel = cr.map(r => r.name).slice(0, 2).join(' / ')
-        if (cr[0]) catHref = `${base}${cr[0].slug}/`
+        const rows = await queryAll(c,
+          `SELECT id, name, slug FROM categories WHERE id IN (${ph(ids.length)})`, ids)
+        catItems = rows.slice(0, 2).map(row => ({
+          name: lang === 'en' ? (CATEGORY_NAMES_EN[row.slug] || row.name) : row.name,
+          href: `${base}${row.slug}/`,
+        }))
       }
-    } catch { catLabel = '' }
+    } catch { catItems = [] }
+    const catLabel = catItems.map(cat => cat.name).join(' / ')
+    const catLinksHtml = catItems.map(cat => `<a href="${cat.href}">${esc(cat.name)}</a>`).join(' / ')
     // 手机上侧栏会堆到全文之后，标题下只补 meta 里没有的三项：
     // 日期/作者/时长上面已经写过一遍，再列一次就是重复。
     const factSummary = `<dl class="only-mobile">
-      ${catLabel?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
+      ${catItems.length?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
       <dt>${lang==='en'?'First run':'首发'}</dt><dd>${esc(publishedDate)}</dd>
       <dt>${lang==='en'?'Length':'正文'}</dt><dd>${wordCount} ${lang==='en'?'chars':'字'}</dd>
     </dl>`
     const articleSidebar = `
-      <div class="widget">
+      <div class="widget record-widget">
         <h3>${lang==='en'?'Record':'条目信息'}</h3>
         <dl class="kv">
           <dt>${lang==='en'?'Updated':'更新'}</dt><dd>${esc(modifiedDate)}</dd>
           <dt>${lang==='en'?'First run':'首发'}</dt><dd>${esc(publishedDate)}</dd>
-          ${catLabel?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
+          ${catItems.length?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
           <dt>${lang==='en'?'Length':'正文'}</dt><dd>${wordCount} ${lang==='en'?'chars':'字'}</dd>
           <dt>${lang==='en'?'Read':'预计'}</dt><dd>${lang==='en'?`${readMin} min`:`${readMin} 分钟`}</dd>
           <dt>${lang==='en'?'Lang':'语言'}</dt><dd>${lang==='en'?'English':'中文'}</dd>
@@ -1996,7 +2258,7 @@ app.get('*', async (c) => {
         ${recent}
       </div>`
     const body = `<article class="article">
-      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a>${catHref?` / <a href="${catHref}">${esc(catLabel)}</a>`:''}</nav>
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a>${catLinksHtml?` / ${catLinksHtml}`:''}</nav>
       <div class="article-header">
         <h1>${esc(p.title)}</h1>
         <div class="article-meta">
@@ -2010,25 +2272,25 @@ app.get('*', async (c) => {
       </div>
       ${heroHtml}
       <div class="content">${content}</div>
-      <div class="article-footer">
-        <a class="lang-toggle" href="${altHref}">${altLang==='en'?'Read in English':'阅读中文版'}</a>
-      </div>
+      ${altHref?`<div class="article-footer"><a class="lang-toggle" href="${altHref}" hreflang="${altLang}">${altLang==='en'?'Read in English':'阅读中文版'}</a></div>`:''}
     </article>`
+    const breadcrumbItems = [
+      { '@type':'ListItem',position:1,name:lang==='en'?'Home':'首页',item:`${SITE}${base}` },
+      ...catItems.map((cat, i) => ({ '@type':'ListItem',position:i+2,name:cat.name,item:`${SITE}${cat.href}` })),
+      { '@type':'ListItem',position:catItems.length+2,name:p.title,item:articleUrl },
+    ]
     return c.html(layout(lang, `${p.title} - VirtualCardx`,
       articleDesc, body,
-      { sidebar: articleSidebar, path: `${path}/`, ogType: 'article',
+      { sidebar: articleSidebar, path: `${path}/`, ogType: 'article', altHref, switchHref: altHref,
         jsonld: { '@context':'https://schema.org', '@graph': [
           { '@type':'Article', '@id':`${articleUrl}#article`, headline:p.title.slice(0,110), description:articleDesc, url:articleUrl,
             image:articleImage ? [articleImage] : undefined,
-            datePublished:publishedDate, dateModified:modifiedDate, inLanguage:lang==='en'?'en':'zh-CN',
+            datePublished:publishedDate || undefined, dateModified:modifiedDate || undefined, inLanguage:lang==='en'?'en':'zh-CN',
             author:{'@type':'Person',name:'Kenneth Lau',url:`${SITE}${base}about/`,'sameAs':['https://www.linkedin.com/in/kenneth-lau-77a551379','https://www.linkedin.com/company/virtualcardx']},
             publisher:{'@type':'Organization','@id':`${SITE}/#organization`,name:'VirtualCardx',logo:{'@type':'ImageObject',url:`${SITE}/brand/icon-512.png`,width:512,height:512}},
             mainEntityOfPage:{'@id':`${articleUrl}#webpage`}, isPartOf:{'@id':`${SITE}${base}#website`} },
           { '@type':'WebPage', '@id':`${articleUrl}#webpage`, url:articleUrl, name:p.title, inLanguage:lang==='en'?'en':'zh-CN', mainEntity:{'@id':`${articleUrl}#article`} },
-          { '@type':'BreadcrumbList', itemListElement:[
-            {'@type':'ListItem',position:1,name:lang==='en'?'Home':'首页',item:`${SITE}${base}`},
-            {'@type':'ListItem',position:2,name:p.title,item:articleUrl}
-          ]}
+          { '@type':'BreadcrumbList', itemListElement:breadcrumbItems }
         ]},
         extraHead: `${ogImageTag}` }))
     }
@@ -2053,8 +2315,7 @@ app.get('*', async (c) => {
       const target = m[2] === 'tag' ? `${base}virtual-credit-card/` : base
       return c.redirect(`/${target}`, 301)
     }
-    const d = rawPath.match(/^\/(en\/)?\d{4}(?:\/\d{2})?(?:\/.*)?$/)
-    if (d) return c.redirect(`/${d[1] || ''}`, 301)
+    // 未知日期路径返回真实 404。只有上方明确列出的旧地址才做 301，避免 soft-404。
     // 文章 slug 后误拼的 /null（旧模板遗留，bingbot 反复抓）→ 301 回文章本身
     if (/\/null\/?$/.test(rawPath)) {
       return c.redirect(rawPath.replace(/\/null\/?$/, '/'), 301)
@@ -2081,6 +2342,15 @@ app.get('*', async (c) => {
       return c.text('Internal Server Error', 500)
     }
   }
+})
+
+app.onError((err, c) => {
+  const requestId = c.get('requestId') || crypto.randomUUID()
+  console.error(JSON.stringify({ event: 'unhandled_error', requestId, message: err?.message || 'unknown' }))
+  if (new URL(c.req.url).pathname.startsWith('/api/')) {
+    return apiJson({ error: 'Internal server error', requestId }, 500)
+  }
+  return c.text('Internal Server Error', 500, { 'X-Request-ID': requestId, 'Cache-Control': 'no-store' })
 })
 
 export default app

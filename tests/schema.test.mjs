@@ -28,7 +28,7 @@ function codeColumns(source, table) {
     if (list.includes('*') || list.includes('${')) return
     for (const part of list.split(',')) {
       const name = part.trim().split(/\s+/)[0]
-      if (/^[a-z_][a-z0-9_]*$/i.test(name)) cols.add(name)
+      if (/^[a-z_][a-z0-9_]*$/i.test(name) && !/^(NULL|CASE|COUNT|MAX|MIN|COALESCE)$/i.test(name)) cols.add(name)
     }
   }
   // 匹配到「最近的」FROM，再判断表名，避免 SELECT 跨越整段代码吞掉别的查询
@@ -68,9 +68,12 @@ test('media 的尺寸/alt 列在 schema 里', () => {
 })
 
 test('schema 覆盖 Worker 依赖的全部表', () => {
-  for (const t of ['posts', 'categories', 'tags', 'pages', 'media']) {
+  for (const t of ['posts', 'categories', 'tags', 'pages', 'media', 'post_categories', 'site_events']) {
     assert.ok(new RegExp(`CREATE TABLE IF NOT EXISTS ${t} `).test(schema), `缺表 ${t}`)
   }
+  assert.ok(/CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts/.test(schema), '缺全文搜索索引')
+  assert.ok(/date_ts INTEGER/.test(schema), '缺规范化时间戳')
+  assert.ok(/CREATE UNIQUE INDEX IF NOT EXISTS ux_posts_path_lang/.test(schema), '缺文章规范路径唯一约束')
 })
 
 test('export default 在 catch-all 注册之后（避免顺序陷阱）', () => {
