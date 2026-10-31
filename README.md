@@ -11,7 +11,8 @@ virtualcardx.com 的 Cloudflare Workers 源码（Hono + D1 `vcx-db` + R2 `vcx-me
 | `meta-desc.js` | 静态页 / 分类页的 meta description 文案（DB 里没有 description 列） |
 | `db/schema.sql` | D1 表结构（posts / categories / tags / pages / media + 索引） |
 | `db/migrations/` | 生产库增量迁移（已有库补列 / 补索引） |
-| `wrangler.toml` | Cloudflare 配置（D1/R2 绑定、account_id） |
+| `wrangler.toml` | Cloudflare 配置（D1/R2 绑定、account_id、`assets` 静态目录） |
+| `public/` | 自托管 IBM Plex（Sans 可变字重 + Mono 400/500/600 woff2）与 `_headers`，经 Workers Assets 提供 |
 | `deploy_vcx.sh` | Cloudflare API 部署脚本 |
 | `tests/` | `node:test` 回归套件（路由 / SEO / 404 / API / 查询数 / schema 一致性） |
 

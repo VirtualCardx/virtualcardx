@@ -4,6 +4,13 @@ compatibility_date = "2025-04-30"
 account_id = "ce642be238771f93eee372d5035c488d"
 workers_dev = true
 
+# 自托管 IBM Plex 字体（Plex Sans 可变字重 + Plex Mono 400/500/600）。
+# 不引 Google Fonts：第三方字体 CDN 会带一个渲染阻塞请求和一次 DNS/TLS 往返，
+# 而且中文字面本来就只能靠系统栈。
+[assets]
+directory = "./public"
+# 只让 /fonts/* 走静态资源；其余路径交给 Worker 的 Hono 路由与 catch-all。
+
 [[d1_databases]]
 binding = "DB"
 database_name = "vcx-db"

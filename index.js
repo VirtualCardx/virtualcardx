@@ -202,202 +202,253 @@ const SITE = 'https://virtualcardx.com'
 
 // ============ 共享 CSS ============
 const CSS = `
+/* ===== 字体：拉丁用自托管 IBM Plex，中文走系统黑体栈 ===== */
+@font-face{font-family:'Plex Sans';src:url('/fonts/ibm-plex-sans-latin-wght-normal.woff2') format('woff2');font-weight:100 700;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Plex Mono';src:url('/fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+
 :root{
-  /* 单色墨系 + 一个砖红强调色。刻意不用蓝紫渐变: 那是模板站最明显的标记。 */
-  --primary:#8c3325; --primary-dark:#6f2719; --primary-light:#f5ece9;
-  --accent:#8c3325;
-  --text:#1b1c1e; --text-light:#6d7176;
-  --bg:#ffffff; --wash:#f6f5f1;
-  --border:#dcd9d3; --border-soft:#ebe8e3;
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  /* 一套石墨灰阶 + 一个信号色。这是全部颜色。 */
+  --paper:#ffffff;
+  --surface:#f5f7f8;
+  --rule:#e2e7ec;
+  --ink:#111820;
+  --ink-2:#5b6774;
+  --ink-3:#7c8894;
+  --signal:#0f4c81;
+  --fill:#0a0e12;
+  --sans:'Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','HarmonyOS Sans SC','Hiragino Sans GB','Source Han Sans SC','Noto Sans CJK SC','Microsoft YaHei',sans-serif;
+  /* 等宽栈尾部同样挂中文黑体：否则 Windows 会把等宽标签里的中文落到宋体，
+     宋体与黑体同屏出现是最容易露馅的排版事故。 */
+  --mono:'Plex Mono',ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Liberation Mono','PingFang SC','HarmonyOS Sans SC','Hiragino Sans GB','Source Han Sans SC','Noto Sans CJK SC','Microsoft YaHei',monospace;
+  --w:1152px;
 }
+
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
-body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.8;font-size:17px;text-rendering:optimizeLegibility}
-a{color:var(--primary);text-decoration:none}
-a:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
-img{max-width:100%;height:auto}
-::selection{background:var(--primary-light);color:var(--primary-dark)}
-:focus-visible{outline:2px solid var(--primary);outline-offset:3px;border-radius:2px}
-.container{max-width:1120px;margin:0 auto;padding:0 24px}
+body{font-family:var(--sans);font-size:16px;font-weight:400;line-height:1.7;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--signal);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+img{max-width:100%;height:auto;display:block}
+::selection{background:var(--rule);color:var(--ink)}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.container{max-width:var(--w);margin:0 auto;padding:0 16px}
 
-/* 顶部导航 */
-.site-header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
-.header-inner{max-width:1120px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:62px;gap:16px}
-.logo{font-size:1.02rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px;letter-spacing:-.01em}
-.logo:hover{text-decoration:none;color:var(--primary)}
-.logo-img{height:30px;width:auto;display:block}
-.main-nav{display:flex;align-items:center;gap:26px}
-.main-nav a{color:var(--text);font-size:.94rem;font-weight:500;padding:4px 0}
-.main-nav a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:1px}
-.nav-right{display:flex;align-items:center;gap:18px}
-/* 汉堡菜单按钮 (默认隐藏, 移动端显示) */
+/* 字距只对拉丁收紧；中文压缩会挤字形 */
+h1,h2,h3,h4{font-weight:600;line-height:1.25;letter-spacing:-.021em}
+html[lang="zh"] h1,html[lang="zh"] h2,html[lang="zh"] h3,html[lang="zh"] h4{letter-spacing:0}
+
+/* 标签：12px / 0.11em / 大写 / 常规字重。中文没有大写，字距收到 0.06em */
+.label{font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2)}
+html[lang="zh"] .label{letter-spacing:.06em}
+
+/* ===== 页头 ===== */
+.site-header{border-bottom:1px solid var(--rule);background:var(--paper);position:sticky;top:0;z-index:100}
+.header-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:64px;display:flex;align-items:center;gap:30px}
+.logo{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.logo:hover{color:var(--ink);text-decoration:none}
+.logo-img{height:22px;width:auto}
+.main-nav{display:flex;align-items:center;gap:26px;margin-right:auto}
+.main-nav a{font-size:13px;color:var(--ink-2)}
+.main-nav a:hover{color:var(--ink);text-decoration:none}
+.nav-right{display:flex;align-items:center;gap:16px}
 .menu-toggle{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-direction:column;gap:5px}
-.menu-toggle .bar{display:block;width:20px;height:1.5px;background:var(--text);transition:transform .18s,opacity .18s}
+.menu-toggle .bar{display:block;width:18px;height:1.5px;background:var(--ink);transition:transform .16s,opacity .16s}
 .menu-toggle[aria-expanded="true"] .bar:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
 .menu-toggle[aria-expanded="true"] .bar:nth-child(2){opacity:0}
 .menu-toggle[aria-expanded="true"] .bar:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
-/* 搜索: 一条下划线, 不用药丸输入框 */
-.search-box{display:flex;align-items:center;border-bottom:1px solid var(--border);height:30px;transition:border-color .15s}
-.search-box:focus-within{border-color:var(--text)}
-.search-box input{border:none;background:transparent;outline:none;font-size:.88rem;width:148px;color:var(--text);font-family:inherit}
-.search-box button{border:none;background:none;color:var(--text-light);font-size:.82rem;cursor:pointer;padding:0 0 0 8px;font-family:inherit}
-.search-box button:hover{color:var(--primary)}
-.lang-switch{font-size:.84rem;color:var(--text-light);padding:2px 0;border-bottom:1px solid transparent}
-.lang-switch:hover{color:var(--primary);border-bottom-color:var(--primary);text-decoration:none}
 
-/* 分类条: 纯文本导航 */
-.cat-bar{background:#fff;border-bottom:1px solid var(--border)}
-.cat-bar-inner{max-width:1120px;margin:0 auto;display:flex;gap:22px;overflow-x:auto;white-space:nowrap;padding:9px 24px}
+/* 输入框：1px 边框、白底、2px 圆角、无内阴影 */
+.search-box{display:flex;align-items:center}
+.search-box input{width:148px;height:32px;border:1px solid var(--rule);border-radius:2px;background:var(--paper);padding:0 8px;font-size:13px;font-family:var(--sans);color:var(--ink)}
+.search-box input::placeholder{color:var(--ink-2)}
+.search-box input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.search-box button{height:32px;margin-left:6px;padding:0 11px;background:var(--fill);color:#fff;border:1px solid var(--fill);border-radius:2px;font-size:12px;font-weight:600;font-family:var(--sans);cursor:pointer}
+.search-box button:hover{background:var(--signal);border-color:var(--signal)}
+.lang-switch{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.lang-switch:hover{color:var(--signal);text-decoration:none}
+
+/* ===== 分类条：文字链接，一条细线收口 ===== */
+.cat-bar{border-bottom:1px solid var(--rule)}
+.cat-bar-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:40px;display:flex;align-items:center;gap:24px;overflow-x:auto}
 .cat-bar-inner::-webkit-scrollbar{display:none}
-.cat-bar a{font-size:.85rem;color:var(--text-light)}
-.cat-bar a:hover{color:var(--primary);text-decoration:none}
-/* 主布局 */
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:48px;max-width:1120px;margin:0 auto;padding:36px 24px 64px}
-.layout>main,.layout>.sidebar{min-width:0}
+.cat-bar a{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.cat-bar a:hover{color:var(--signal);text-decoration:none}
+
+/* ===== 主布局：详情页 19rem 侧栏 ===== */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;max-width:var(--w);margin:0 auto;padding:36px 16px 56px}
 .layout.no-sidebar{grid-template-columns:minmax(0,1fr)}
+.layout>main{min-width:0}
 
-/* 文章列表: 分隔线分栏, 不用卡片盒子 */
-.post-card{display:flex;gap:22px;padding:24px 0;border-bottom:1px solid var(--border-soft);align-items:flex-start}
-.post-card:first-of-type{padding-top:0}
-.post-thumb{flex:0 0 150px;display:block;overflow:hidden;background:var(--wash);aspect-ratio:4/3}
-.post-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.post-card.no-thumb{gap:0}
-.post-card.no-thumb .post-thumb{display:none}
-.post-body{flex:1;min-width:0}
-.post-meta{display:flex;align-items:center;gap:10px;font-size:.79rem;color:var(--text-light);margin-bottom:6px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
-.post-meta .cat{color:var(--primary)}
-.post-title{font-size:1.15rem;font-weight:600;line-height:1.5;margin-bottom:7px;letter-spacing:-.01em}
-.post-title a{color:var(--text)}
-.post-title a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
-.post-excerpt{color:var(--text-light);font-size:.93rem;line-height:1.72}
-@media(max-width:700px){
-  .post-card{gap:14px;padding:20px 0}
-  .post-thumb{flex:0 0 96px}
-  .post-title{font-size:1.06rem}
-  .post-excerpt{font-size:.9rem}
-}
+/* ===== Hero：不居中。左标题，右三条数字事实，共用同一条起始横线 ===== */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;border-top:1px solid var(--rule);padding-top:26px;margin-bottom:56px}
+.hero-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;font-family:var(--mono);font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2)}
+html[lang="zh"] .hero-kicker{letter-spacing:.06em}
+.hero-kicker::before{content:'';width:9px;height:9px;background:var(--signal);display:block}
+.hero-title{font-size:2.7rem;line-height:1.1;font-weight:600;margin:0 0 14px;max-width:30ch}
+/* 中文没有升降部，1.1 的行高会把行挤在一起 */
+html[lang="zh"] .hero-title{line-height:1.18}
+.hero-lede{font-size:15px;line-height:1.65;color:var(--ink-2);max-width:54ch;margin:0 0 24px}
+.hero-actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;height:38px;padding:0 18px;background:var(--fill);color:#fff;border:1px solid var(--fill);border-radius:2px;font-size:13px;font-weight:600;letter-spacing:.01em}
+.btn:hover{background:var(--signal);border-color:var(--signal);color:#fff;text-decoration:none}
+.btn-quiet{font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--rule);padding-bottom:1px}
+.btn-quiet:hover{color:var(--signal);border-color:var(--signal);text-decoration:none}
+.facts{display:flex;flex-direction:column;min-width:0}
+.fact{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule)}
+.fact:first-child{padding-top:2px}
+.fact .k{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:0}
+.fact .v{font-family:var(--mono);font-size:19px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
 
-/* 分页: 纯文字, 当前页加粗 */
-.pagination{display:flex;align-items:center;gap:2px;margin:34px 0 0;flex-wrap:wrap;font-size:.9rem}
-.pagination a,.pagination .cur,.pagination .dots,.pagination .disabled{min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;color:var(--text-light);font-variant-numeric:tabular-nums}
-.pagination a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:4px}
-.pagination .cur{color:var(--text);font-weight:700}
-.pagination .dots{color:var(--border);min-width:18px}
-.pagination .disabled{opacity:.35}
-.pagination .page-info{font-size:.8rem;color:var(--text-light);margin-left:auto;white-space:nowrap}
-@media(max-width:700px){
-  .pagination{gap:0}
-  .pagination .first,.pagination .last{display:none}
-  .pagination .page-info{display:none}
-}
+/* ===== 区块标题：上细线 + 左标题 + 右计数 ===== */
+.section-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;border-top:1px solid var(--rule);padding-top:11px;margin-bottom:14px}
+.section-head h2{font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.11em;text-transform:uppercase;color:var(--ink)}
+html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-weight:600;letter-spacing:0}
+.section-head .count{font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 
-/* 侧边栏: 无卡片框, 靠标题和细线分区 */
-.sidebar{display:flex;flex-direction:column;gap:34px}
-.widget h3{font-size:.78rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-light);margin-bottom:13px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+/* ===== 列表：共享细线网格。容器 border-top+left，格子自己 border-right+bottom，
+   末行不满也不会露出灰块 ===== */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
+.cell{position:relative;display:flex;flex-direction:column;padding:22px 24px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.cell-no{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-bottom:10px;font-variant-numeric:tabular-nums}
+.cell h3{font-size:16px;font-weight:600;line-height:1.36;margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cell h3 a{color:var(--ink)}
+.cell h3 a::after{content:'';position:absolute;inset:0;z-index:1}
+.cell:hover h3 a{color:var(--signal)}
+.cell p{font-size:13.5px;line-height:1.6;color:var(--ink-2);margin:0 0 16px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.spec{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:auto 0 0;padding:0}
+.spec dt{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:0}
+.spec dd{margin:0;font-family:var(--mono);font-size:12.5px;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.cell-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:11px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.cell-foot .arrow{color:var(--ink);display:inline-block;transition:transform .12s}
+.cell:hover .arrow{transform:translateX(3px)}
+
+/* ===== 分页：等宽数字，细线分隔，当前页用最深填充 ===== */
+.pagination{display:flex;align-items:stretch;flex-wrap:wrap;border-top:1px solid var(--rule)}
+.pagination a,.pagination .cur,.pagination .dots,.pagination .disabled{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0 8px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.pagination a:hover{background:var(--surface);color:var(--ink);text-decoration:none}
+.pagination .cur{background:var(--fill);color:#fff}
+.pagination .dots{color:var(--ink-2);min-width:20px}
+.pagination .disabled{color:var(--ink-2)}
+.pagination .page-info{margin-left:auto;padding-left:16px;display:inline-flex;align-items:center;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
+
+/* ===== 侧栏 ===== */
+.sidebar{display:flex;flex-direction:column;gap:34px;position:sticky;top:88px;align-self:start}
+.widget{border-top:1px solid var(--rule);padding-top:10px}
+.widget h3{font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2);margin:0 0 11px}
+html[lang="zh"] .widget h3{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:0}
 .widget ul{list-style:none}
-.widget li{margin-bottom:10px;font-size:.91rem;line-height:1.6}
-.widget li:last-child{margin-bottom:0}
-.widget li a{color:var(--text)}
-.widget li a:hover{color:var(--primary)}
-.author-card .author-name{font-size:.98rem;font-weight:700;margin-bottom:8px}
-.author-card p{font-size:.89rem;color:var(--text-light);line-height:1.72}
-.contact-list li{font-size:.89rem;color:var(--text-light)}
-/* 断点必须写在 .sidebar 规则之后: 同优先级下后定义的 display 会赢 */
-@media(max-width:900px){.layout{grid-template-columns:minmax(0,1fr);gap:0}.sidebar{display:none}}
+.widget li{font-size:13px;line-height:1.55;padding:8px 0;border-bottom:1px solid var(--rule)}
+.widget li:last-child{border-bottom:none;padding-bottom:0}
+.widget li a{color:var(--ink)}
+.widget li a:hover{color:var(--signal);text-decoration:none}
+.author-card .author-name{font-size:13px;font-weight:600;margin-bottom:6px}
+.author-card p{font-size:13px;line-height:1.65;color:var(--ink-2)}
+.kv{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:9px 12px;margin:0}
+.kv dt{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.kv dd{margin:0;font-family:var(--mono);font-size:12px;color:var(--ink);overflow-wrap:anywhere}
 
-/* 文章页: 不套外框, 正文直接排在版面上 */
-.article{padding:0}
-.article-header{margin-bottom:22px}
-.article .article-hero{display:block;width:100%;max-height:440px;object-fit:cover;margin:22px 0 4px}
-.article h1{font-size:1.88rem;font-weight:700;line-height:1.42;margin-bottom:14px;letter-spacing:-.02em}
-.article-meta{display:flex;gap:10px;font-size:.85rem;color:var(--text-light);flex-wrap:wrap;align-items:center;font-variant-numeric:tabular-nums}
-.article-meta .sep{color:var(--border)}
-.article-meta .author-link{color:inherit;text-decoration:none;border-bottom:1px solid var(--border)}
-.article-meta .author-link:hover{color:var(--primary);border-color:var(--primary);text-decoration:none}
-.breadcrumbs{font-size:.81rem;color:var(--text-light);margin:0 0 16px;line-height:1.5}
-.breadcrumbs a{color:var(--text-light);border-bottom:1px solid var(--border)}
-.breadcrumbs a:hover{color:var(--primary);border-color:var(--primary);text-decoration:none}
-.article .content{font-size:1.04rem}
-.article .content h2{font-size:1.3rem;font-weight:700;margin:38px 0 14px;letter-spacing:-.01em}
-.article .content h3{font-size:1.13rem;font-weight:700;margin:28px 0 10px}
-.article .content p{margin:0 0 18px}
-.article .content ul,.article .content ol{margin:0 0 18px 22px}
-.article .content li{margin-bottom:7px}
-.article .content img{margin:18px 0}
-.article .content table{width:100%;border-collapse:collapse;margin:22px 0;font-size:.92rem;border-top:1px solid var(--border)}
-.article .content th{font-weight:600;text-align:left;background:var(--wash)}
-.article .content td,.article .content th{border:none;border-bottom:1px solid var(--border-soft);padding:10px 12px}
-.article .content blockquote{border-left:2px solid var(--border);padding:0 0 0 18px;margin:24px 0;color:var(--text-light)}
-.article .content a{text-decoration:underline;text-underline-offset:2px}
-.article,.article .content,.article .content p,.article .content li,.article .content a{overflow-wrap:anywhere;word-break:break-word;min-width:0}
-.article .content table{display:block;max-width:100%;overflow-x:auto}
-.article .content code{background:var(--wash);padding:1px 5px;font-size:.88em;font-family:var(--mono)}
-pre{background:var(--wash);color:var(--text);border:none;border-left:2px solid var(--border);padding:16px 18px;overflow-x:auto;margin:22px 0;max-width:100%;white-space:pre;word-wrap:normal;tab-size:2;font-size:.88rem;font-family:var(--mono);line-height:1.65}
-pre code{background:none;color:inherit;padding:0;white-space:pre;font-size:.88rem;font-family:inherit;line-height:1.65}
-.article-footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--border-soft)}
-.lang-toggle{font-size:.89rem;color:var(--text-light);border-bottom:1px solid var(--border);padding-bottom:1px}
-.lang-toggle:hover{color:var(--primary);border-color:var(--primary);text-decoration:none}
+/* ===== 详情页 ===== */
+.article h1{font-size:2rem;line-height:1.2;margin:0 0 12px}
+html[lang="zh"] .article h1{line-height:1.32}
+.article-header{margin-bottom:18px}
+.article-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.article-meta .sep{color:var(--rule)}
+.article-meta a{color:var(--ink-2)}
+.article-meta a:hover{color:var(--signal)}
+.breadcrumbs{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin:0 0 12px;line-height:1.5}
+.breadcrumbs a{color:var(--ink-2)}
+.breadcrumbs a:hover{color:var(--signal)}
+.article-hero{width:100%;max-height:420px;object-fit:cover;margin:22px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+/* 手机端侧栏会堆到全文之后，所以关键事实要在标题下先给一遍 */
+.only-mobile{display:none}
+.content{font-size:16px;line-height:1.75}
+.content h2{font-size:1.24rem;margin:36px 0 12px}
+.content h3{font-size:1.06rem;margin:26px 0 10px}
+.content p{margin:0 0 16px}
+.content ul,.content ol{margin:0 0 16px 20px}
+.content li{margin-bottom:6px}
+.content img{margin:18px 0}
+.content a{text-decoration:underline;text-underline-offset:2px}
+.content table{display:block;width:100%;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:22px 0;font-size:13px;border-top:1px solid var(--rule)}
+.content th{font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--ink-3)}
+.content td{padding:8px 10px;border-bottom:1px solid var(--rule)}
+.content blockquote{border-left:2px solid var(--signal);padding:0 0 0 16px;margin:22px 0;color:var(--ink-2)}
+.content code,pre{font-family:var(--mono);font-size:13px}
+.content code{background:var(--surface);padding:1px 5px}
+pre{background:var(--surface);border-left:2px solid var(--rule);padding:16px;overflow-x:auto;margin:20px 0;line-height:1.6;white-space:pre;tab-size:2}
+pre code{background:none;padding:0;white-space:pre}
+.article,.content,.content p,.content li,.content a,.cell,.cell h3,.cell p{overflow-wrap:anywhere;word-break:break-word;min-width:0}
+.article-footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);font-size:13px}
+.lang-toggle{font-family:var(--mono);font-size:12px;color:var(--ink-2);border-bottom:1px solid var(--rule);padding-bottom:1px}
+.lang-toggle:hover{color:var(--signal);border-color:var(--signal);text-decoration:none}
 
-/* 页面/分类/搜索 */
-.page-title{font-size:1.72rem;font-weight:700;margin:0 0 20px;letter-spacing:-.015em}
-.post-list{list-style:none;padding:0}
-.post-list li{padding:14px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:baseline;gap:16px}
-.post-list li:last-child{border-bottom:none}
-.post-list a{color:var(--text);font-weight:500;font-size:.97rem}
-.post-list a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
-.post-list time{color:var(--text-light);font-size:.8rem;white-space:nowrap;font-variant-numeric:tabular-nums}
-.home-hero{margin:0;padding:0}
-.home-hero h1{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.home-hero p{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.page-content{padding:0;font-size:1.04rem}
-.page-content h2{font-size:1.28rem;font-weight:700;margin:34px 0 12px}
-.page-content h3{font-size:1.1rem;font-weight:700;margin:26px 0 10px}
-.page-content p{margin-bottom:18px}
-.page-content ul,.page-content ol{margin:0 0 18px 22px}
-.page-content li{margin-bottom:7px}
-.empty-note{color:var(--text-light);font-size:.95rem;padding:26px 0}
-.page-lead{font-size:.87rem;color:var(--text-light);margin:-10px 0 20px}
+/* ===== 页面 / 分类 / 搜索 ===== */
+.page-title{font-size:1.75rem;margin:0 0 8px}
+.page-lead{font-size:13px;color:var(--ink-2);margin:0 0 24px;max-width:62ch}
+.page-content{font-size:16px;line-height:1.75}
+.page-content h2{font-size:1.24rem;margin:32px 0 12px}
+.page-content h3{font-size:1.06rem;margin:26px 0 10px}
+.page-content p{margin:0 0 16px}
+.page-content ul,.page-content ol{margin:0 0 16px 20px}
+.page-content li{margin-bottom:6px}
+.page-content img{margin:18px 0}
+.page-content a{text-decoration:underline;text-underline-offset:2px}
+.post-list{list-style:none}
+.post-list li{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.post-list a{color:var(--ink);font-size:14px}
+.post-list a:hover{color:var(--signal);text-decoration:none}
+.post-list time{font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
+.empty-note{font-size:13.5px;line-height:1.7;color:var(--ink-2);padding:26px 0;max-width:56ch}
+.home-hero{display:none}
 
-/* 页脚: 浅色收口, 不用深色色块 */
-.site-footer{background:var(--wash);border-top:1px solid var(--border);color:var(--text-light);padding:42px 0 30px;margin-top:72px}
-.footer-inner{max-width:1120px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:30px}
-.footer-col h4{color:var(--text);font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;margin-bottom:13px;font-weight:700}
-.footer-col a{display:block;color:var(--text-light);font-size:.89rem;margin-bottom:7px}
-.footer-col a:hover{color:var(--primary);text-decoration:none}
-.footer-bottom{max-width:1120px;margin:30px auto 0;padding:16px 24px 0;border-top:1px solid var(--border);font-size:.8rem;color:var(--text-light)}
+/* ===== 页脚 ===== */
+.site-footer{border-top:1px solid var(--rule);margin-top:64px;padding:38px 0 30px}
+.footer-inner{max-width:var(--w);margin:0 auto;padding:0 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:32px}
+.footer-col h4{font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2);margin:0 0 11px}
+html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-spacing:0}
+.footer-col a{display:block;font-size:13px;color:var(--ink-2);margin-bottom:8px}
+.footer-col a:hover{color:var(--signal);text-decoration:none}
+.footer-bottom{max-width:var(--w);margin:26px auto 0;padding:14px 16px 0;border-top:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--ink-2)}
 
-/* 404 */
-.notfound{padding:76px 0;max-width:560px}
-.notfound .code{font-size:.82rem;font-weight:600;letter-spacing:.14em;color:var(--text-light);font-variant-numeric:tabular-nums}
-.notfound h1{font-size:1.5rem;font-weight:700;margin:10px 0 12px;letter-spacing:-.01em}
-.notfound p{color:var(--text-light);font-size:.95rem;margin-bottom:22px}
-.notfound .links{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:.93rem}
+/* ===== 404 ===== */
+.notfound{padding:68px 0;max-width:54ch}
+.notfound .code{font-family:var(--mono);font-size:12px;letter-spacing:.11em;color:var(--ink-2)}
+.notfound h1{font-size:1.6rem;margin:10px 0 10px}
+.notfound p{font-size:14px;color:var(--ink-2);margin-bottom:20px}
+.notfound .links{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px}
 
-@media(max-width:700px){
-  /* 主菜单: 桌面导航隐藏, 汉堡按钮显示, 点击展开下拉面板 */
-  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;gap:0;padding:0;border-bottom:1px solid var(--border);z-index:99}
+/* ===== 响应式 ===== */
+@media(max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr);gap:0;padding:28px 16px 48px}
+  .sidebar{display:none}
+  .hero{grid-template-columns:minmax(0,1fr);gap:28px;margin-bottom:40px}
+  .hero-title{font-size:1.5rem}
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .only-mobile{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:6px 12px;margin:0 0 20px;padding:12px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .only-mobile dt{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+  .only-mobile dd{margin:0;font-family:var(--mono);font-size:12px;color:var(--ink);text-align:right}
+  .article h1{font-size:1.55rem}
+}
+@media(max-width:760px){
+  .header-inner{height:56px;flex-wrap:wrap;padding:0 16px;gap:0}
+  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);flex-direction:column;align-items:stretch;gap:0;border-bottom:1px solid var(--rule);z-index:99}
   .main-nav.open{display:flex}
-  .main-nav a{padding:13px 20px;border-bottom:1px solid var(--border-soft);font-size:.96rem}
+  .main-nav a{padding:13px 16px;border-bottom:1px solid var(--rule);font-size:14px;color:var(--ink)}
   .main-nav a:last-child{border-bottom:none}
-  .main-nav a:hover{color:var(--primary);text-decoration:none;background:var(--wash)}
-  .menu-toggle{display:flex}
-  .header-inner{position:relative;height:auto;flex-wrap:wrap;padding:9px 16px;gap:8px 12px}
-  .logo-img{height:26px;width:auto}
-  .logo{font-size:.98rem;gap:8px}
-  .nav-right{width:100%;order:3;display:flex;gap:14px}
+  .menu-toggle{display:flex;order:2;margin-left:auto}
+  .header-inner{position:relative}
+  .nav-right{order:3;width:100%;padding:8px 0;border-top:1px solid var(--rule);gap:12px}
   .search-box{flex:1;min-width:0}
   .search-box input{width:auto;flex:1;min-width:0}
-  .search-box button{padding:0 0 0 8px;white-space:nowrap}
-  .cat-bar-inner{gap:16px;padding:8px 16px}
-  .cat-bar a{font-size:.82rem}
-  .layout{padding:24px 16px 48px}
-  .article h1{font-size:1.42rem}
-  .page-title{font-size:1.45rem}
-  .site-footer{margin-top:48px;padding:34px 0 24px}
-  .footer-inner{padding:0 16px}
-  .footer-bottom{padding:14px 16px 0}
+  .logo{order:1}
+  .cat-bar-inner{gap:18px;padding:0 16px}
+  .page-title{font-size:1.4rem}
+  .cell{padding:20px 18px}
+  .site-footer{margin-top:44px;padding:30px 0 24px}
+  .footer-inner{padding:0 16px;gap:26px}
+  .footer-bottom{padding:12px 16px 0}
 }
 `
 
@@ -574,24 +625,22 @@ function layout(lang, title, desc, body, opts={}) {
 <link rel="alternate" hreflang="x-default" href="${SITE}${lang==='zh' ? canonical : altHref}">
 <meta property="og:url" content="${SITE}${canonical}">`
   const sidebar = opts.noSidebar ? '' : `
-  <aside class="sidebar">
+  <aside class="sidebar">${opts.sidebar || `
     <div class="widget author-card">
       <h3>${lang==='en'?'About':'关于作者'}</h3>
       <div class="author-name">Kenneth Lau</div>
       <p>${lang==='en'
-        ? 'I write about cross-border payments, virtual cards and getting paid overseas. Cards get opened and actually used before anything is published; sources are graded by how much they can be trusted.'
-        : '写跨境支付、虚拟卡和出海收款。开卡、充值、扣款都自己跑一遍才写，信源按可靠程度分级。'}</p>
+        ? 'Writes about cross-border payments and virtual cards. The cards here were opened and charged for real; where a source could not be checked, it says so.'
+        : '写跨境支付和虚拟卡。这里的卡是自己开的，扣款记录在文里。核实不了的来源会标出来。'}</p>
     </div>
     <div class="widget">
-      <h3>${lang==='en'?'Recent posts':'最近更新'}</h3>
+      <h3>${lang==='en'?'Recent':'最近更新'}</h3>
       ${opts.recentPosts||''}
     </div>
     <div class="widget">
-      <h3>${lang==='en'?'Get in touch':'联系'}</h3>
-      <ul class="contact-list">
-        <li>Telegram&nbsp;&nbsp;@VirtualCardx</li>
-      </ul>
-    </div>
+      <h3>${lang==='en'?'Contact':'联系'}</h3>
+      <ul><li>Telegram&nbsp;&nbsp;@VirtualCardx</li></ul>
+    </div>`}
   </aside>`
   return `<!DOCTYPE html>
 <html lang="${lang}">
@@ -602,6 +651,7 @@ function layout(lang, title, desc, body, opts={}) {
 <meta name="description" content="${esc(desc)}">
 ${opts.noindex ? '<meta name="robots" content="noindex,follow">' : ''}
 <link rel="icon" type="image/png" href="/media/1556-cropped-logo.png">
+<link rel="preload" href="/fonts/ibm-plex-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 ${seoHead}
 <meta property="og:type" content="${opts.ogType||'website'}">
 <meta property="og:site_name" content="VirtualCardx">
@@ -780,69 +830,65 @@ async function rewriteImages(c, html, fallbackAlt='') {
 // 一次批量取 media 与中文配对信息，替代原实现"每张卡片 2~3 次查询"的 N+1：
 // 一页 10 篇从最多 ~30 次查询降到 2 次。
 // opts: { showCat, showZhTag, lcpFirst }
+// 列表单元（网格里的一格）。刻意不放缩略图：这一列读的是数字和规格，
+// 一张 4:3 的配图会把格子撑成落地页卡片。
+// 查询固定 2 次（配对摘要 + 分类名称），不随文章数增长。
 async function renderPostCards(c, lang, posts, opts = {}) {
   const base = baseOf(lang)
-  // 第一步: 先把英文文章的中文配对信息取回来 (特色图 / 摘要回退都依赖它)
+  // 英文文章没有摘要时回退到中文配对
   const needPair = new Set()
   for (const p of posts) {
-    if (lang !== 'en' || !p.translation_id) continue
-    if (!p.featured_media || !excerptText(p.excerpt)) needPair.add(p.translation_id)
+    if (lang === 'en' && p.translation_id && !excerptText(p.excerpt)) needPair.add(p.translation_id)
   }
-  const pairByTid = new Map()
+  const pairExcerpt = new Map()
   if (needPair.size) {
     const rows = await queryAll(c,
-      `SELECT translation_id, featured_media, excerpt FROM posts WHERE lang = 'zh' AND translation_id IN (${ph(needPair.size)})`,
+      `SELECT translation_id, excerpt FROM posts WHERE lang = 'zh' AND translation_id IN (${ph(needPair.size)})`,
       [...needPair])
     for (const r of rows) {
-      const cur = pairByTid.get(r.translation_id) || {}
-      if (!cur.featured_media && r.featured_media) cur.featured_media = r.featured_media
-      if (!cur.excerpt && r.excerpt) cur.excerpt = r.excerpt
-      pairByTid.set(r.translation_id, cur)
+      if (!pairExcerpt.get(r.translation_id) && r.excerpt) pairExcerpt.set(r.translation_id, r.excerpt)
     }
   }
-  // 第二步: 解析出每篇文章最终用的特色图 id, 一次性查 media
-  // (配对回退得到的 id 必须并入同一批, 否则英文卡片永远拿不到图)
-  const fmByPost = new Map()
-  const needFm = new Set()
-  for (const p of posts) {
-    const pair = (lang === 'en' && p.translation_id) ? pairByTid.get(p.translation_id) : null
-    const fm = p.featured_media || (pair && pair.featured_media) || null
-    fmByPost.set(p, fm)
-    if (fm) needFm.add(fm)
+  // 分类 id -> 名称（只有 3 个分类，一次全表查询比每篇 JOIN 便宜）
+  const catName = new Map()
+  if (opts.showCat) {
+    const rows = await queryAll(c, 'SELECT id, name FROM categories', [])
+    for (const r of rows) catName.set(r.id, r.name)
   }
-  const mediaById = new Map()
-  if (needFm.size) {
-    const rows = await queryAll(c,
-      `SELECT id, path, alt, width, height FROM media WHERE id IN (${ph(needFm.size)})`, [...needFm])
-    for (const r of rows) mediaById.set(r.id, r)
+  const catOf = (p) => {
+    if (!catName.size || !p.category_ids) return ''
+    let ids = []
+    try { ids = JSON.parse(p.category_ids) || [] } catch { ids = [] }
+    for (const id of ids) if (catName.has(id)) return catName.get(id)
+    return ''
   }
-  const cards = []
-  for (const p of posts) {
-    const pair = (lang === 'en' && p.translation_id) ? pairByTid.get(p.translation_id) : null
-    const fm = fmByPost.get(p)
-    const m = fm ? mediaById.get(fm) : null
-    let imgHtml = ''
-    if (m) {
-      const dims = m.width && m.height ? ` width="${m.width}" height="${m.height}"` : ''
-      const isFirst = opts.lcpFirst && cards.length === 0
-      imgHtml = isFirst
-        ? `<img src="/${m.path}" alt="${esc(m.alt || p.title)}"${dims} fetchpriority="high" decoding="async">`
-        : `<img src="/${m.path}" alt="${esc(m.alt || p.title)}"${dims} loading="lazy" decoding="async">`
-    }
-    const excerpt = excerptText(p.excerpt, 156) || (pair ? excerptText(pair.excerpt, 156) : '')
-    const metaBits = []
-    metaBits.push(`<span>${esc(fmtDate(p.date))}</span>`)
-    if (opts.showZhTag && p.isZhFallback) metaBits.push(`<span class="cat">${lang==='en'?'ZH':'中文'}</span>`)
-    cards.push(`<article class="post-card${imgHtml?'':' no-thumb'}">
-      ${imgHtml?`<a class="post-thumb" href="${base}${p.path}/" tabindex="-1" aria-hidden="true">${imgHtml}</a>`:''}
-      <div class="post-body">
-        <div class="post-meta">${metaBits.join('')}</div>
-        <h2 class="post-title"><a href="${base}${p.path}/">${esc(p.title)}</a></h2>
-        ${excerpt?`<div class="post-excerpt">${esc(excerpt)}</div>`:''}
+  // 阅读时长：按每分钟 400 字估算正文字数
+  const readMin = (p) => {
+    const n = Number(p.body_len) || 0
+    if (!n) return ''
+    return Math.max(1, Math.round(n / 400))
+  }
+  return posts.map((p, i) => {
+    const excerpt = excerptText(p.excerpt, 120) || (p.translation_id ? excerptText(pairExcerpt.get(p.translation_id), 120) : '')
+    const cat = catOf(p)
+    const min = readMin(p)
+    const zhTag = opts.showZhTag && p.isZhFallback
+      ? `<span class="tag">${lang === 'en' ? 'ZH source' : '中文原文'}</span>` : ''
+    const spec = [
+      cat ? `<dt>${lang === 'en' ? 'Filed' : '分类'}</dt><dd>${esc(cat)}</dd>` : '',
+      `<dt>${lang === 'en' ? 'Updated' : '更新'}</dt><dd>${esc(fmtDate(p.date))}</dd>`,
+      Number(p.body_len) ? `<dt>${lang === 'en' ? 'Length' : '正文'}</dt><dd>${Number(p.body_len)} ${lang === 'en' ? 'chars' : '字'}</dd>` : ''
+    ].join('')
+    return `<article class="cell">
+      <h3><a href="${base}${p.path}/">${esc(p.title)}</a></h3>
+      ${excerpt ? `<p>${esc(excerpt)}</p>` : ''}
+      <dl class="spec">${spec}</dl>
+      <div class="cell-foot">
+        <span>${min ? (lang === 'en' ? `${min} min read` : `约 ${min} 分钟`) : (lang === 'en' ? 'Review' : '评测')}${zhTag}</span>
+        <span class="arrow" aria-hidden="true">&#8594;</span>
       </div>
-    </article>`)
-  }
-  return cards.join('')
+    </article>`
+  }).join('')
 }
 
 // ============ 路由 ============
@@ -888,20 +934,20 @@ app.get('/search', async (c) => {
 // 站内搜索 (WP 兼容 ?s= 与新版 /search?q= 共用)
 async function handleSearch(c, lang, q) {
   const results = await queryAll(c,
-    'SELECT slug, title, excerpt, path, date, featured_media, translation_id FROM posts WHERE lang = ? AND status="publish" AND (title LIKE ? OR content LIKE ?) ORDER BY sticky DESC, date DESC LIMIT 20',
+    'SELECT slug, title, excerpt, path, date, category_ids, translation_id, length(content) AS body_len FROM posts WHERE lang = ? AND status="publish" AND (title LIKE ? OR content LIKE ?) ORDER BY sticky DESC, date DESC LIMIT 20',
     [lang, `%${q}%`, `%${q}%`])
-  const cards = await renderPostCards(c, lang, results)
+  const cards = await renderPostCards(c, lang, results, { showCat: true })
   const count = results.length
-  const listHtml = cards || `<p class="empty-note">${lang==='en'
-    ? `Nothing matched “${esc(q)}”. Try a card name, or a shorter phrase.`
-    : `没有匹配 “${esc(q)}” 的内容。可以试试平台名，或者把关键词缩短一点。`}</p>`
-  const lead = cards
-    ? `<p class="page-lead">${lang==='en'
-        ? `${count} ${count===1?'match':'matches'} in titles and body text.`
-        : `标题和正文里匹配到 ${count} 篇。`}</p>`
+  const listHtml = cards
+    ? `<div class="grid">${cards}</div>`
+    : `<p class="empty-note">${lang==='en'
+      ? `Nothing matched “${esc(q)}”. Try a card name, or a shorter phrase.`
+      : `没有匹配 “${esc(q)}” 的内容。可以试试平台名，或者把关键词缩短一点。`}</p>`
+  const sectionHead = cards
+    ? `<div class="section-head"><h2>${lang==='en'?'Matches':'匹配条目'}</h2><span class="count">${String(count).padStart(2,'0')}</span></div>`
     : ''
   const heading = lang==='en' ? `Results for “${esc(q)}”` : `“${esc(q)}” 的搜索结果`
-  const body = `<h1 class="page-title">${heading}</h1>${lead}${listHtml}`
+  const body = `<h1 class="page-title">${heading}</h1>${sectionHead}${listHtml}`
   const searchDesc = lang==='en'
     ? `Search results for “${q}” on VirtualCardx. Browse related virtual card reviews, payment guides, and practical tutorials.`
     : `VirtualCardx 站内“${q}”搜索结果，查找相关虚拟卡评测、跨境支付指南与实用教程。`
@@ -922,7 +968,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   if (!catRes.results.length) return null
   const catId = catRes.results[0].id
   const { results: posts } = await c.env.DB.prepare(
-    'SELECT slug, title, path, date, category_ids, featured_media, translation_id, excerpt, sticky FROM posts WHERE lang = ? AND status="publish" ORDER BY sticky DESC, date DESC'
+    'SELECT slug, title, path, date, category_ids, translation_id, excerpt, sticky, length(content) AS body_len FROM posts WHERE lang = ? AND status="publish" ORDER BY sticky DESC, date DESC'
   ).bind(lang).all()
   // 英文分类: category_ids 为空, 通过翻译配对取中文 category_ids
   let zhCatMap = {}
@@ -969,9 +1015,11 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   // 分类 URL 前缀 (分页用)
   const catPath = childSlug ? `${parentSlug}/${childSlug}` : parentSlug
   const catUrl = `${base}${catPath}/`
-  // 渲染卡片式列表 (特色图/摘要/配对回退都在 renderPostCards 内批量处理)
-  const listHtml = (await renderPostCards(c, lang, pageItems, { showZhTag: true })) ||
-    `<p class="empty-note">${lang==='en'?'Nothing filed under this category yet.':`这个分类下还没有文章。`}</p>`
+  // 渲染网格 (摘要配对回退在 renderPostCards 内批量处理)
+  const cards = await renderPostCards(c, lang, pageItems, { showZhTag: true })
+  const listHtml = cards
+    ? `<div class="grid">${cards}</div>`
+    : `<p class="empty-note">${lang==='en'?'Nothing filed under this category yet.':`这个分类下还没有文章。`}</p>`
   // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? catUrl : `${catUrl}page/${p}/`
   const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
@@ -981,7 +1029,9 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
     const nameSlug = childSlug || parentSlug
     name = CATEGORY_NAMES_EN[nameSlug] || name
   }
-  const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(name)}</span></nav><h1 class="page-title">${esc(name)}</h1>${listHtml}${pagination}`
+  const lead = categoryDescFor(lang, childSlug || parentSlug)
+  const sectionHead = `<div class="section-head"><h2>${lang==='en'?'Entries':'条目'}</h2><span class="count">${String(pageItems.length).padStart(2,'0')} / ${filtered.length}</span></div>`
+  const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(name)}</span></nav><h1 class="page-title">${esc(name)}</h1>${lead?`<p class="page-lead">${esc(lead)}</p>`:''}${sectionHead}${listHtml}${pagination}`
   const canonicalPath = page>1 ? `${catPath}/page/${page}/` : `${catPath}/`
   const canonicalUrl = `${SITE}${base}${canonicalPath}`
   const categoryJsonld = {
@@ -1018,7 +1068,7 @@ async function renderHomePage(c, lang, page) {
   const base = baseOf(lang)
   const perPage = 10
   const offset = (page-1)*perPage
-  const COLS = 'slug, title, excerpt, path, date, featured_media, translation_id, sticky'
+  const COLS = 'slug, title, excerpt, path, date, category_ids, translation_id, sticky, length(content) AS body_len'
   let results
   if (lang === 'en') {
     // 英文首页仅展示真实英文文章：日期格式文章，或有翻译配对的新版纯 slug 文章
@@ -1033,23 +1083,40 @@ async function renderHomePage(c, lang, page) {
   const totalPages = Math.max(1, Math.ceil(total/perPage))
   if (page > totalPages) return null
   const pageItems = results.slice(offset, offset+perPage)
-  const cards = await renderPostCards(c, lang, pageItems, { lcpFirst: page === 1 })
+  const cards = await renderPostCards(c, lang, pageItems, { showCat: true })
   // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? base : `${base}page/${p}/`
   const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
-  const recent = await recentPosts(c, lang)
-  // 首页和分页页统一使用无障碍 H1：保留页面语义，不挤压文章列表首屏。
-  const heroTitle = page > 1
-    ? (lang==='en' ? `Latest Articles — Page ${page}` : `最新文章第 ${page} 页`)
-    : (lang==='en'
-        ? 'Virtual Credit Card Reviews &amp; Recommendations — 60+ Platforms Tested'
-        : '虚拟信用卡评测与推荐 — 60+ 平台实测')
-  const heroDescription = page === 1
-    ? `<p>${lang==='en'
-        ? 'Notes on what each virtual card is actually like to use: how the fees work out, where KYC gets stuck, how long funding takes, and when accounts get flagged.'
-        : '这里记的是各家虚拟卡实际用起来是什么样：费率怎么算、KYC 卡在哪一步、充值多久到账、什么情况会被风控。'}</p>`
-    : ''
-  const heroSection = `<section class="home-hero"><h1>${heroTitle}</h1>${heroDescription}</section>`
+  // Hero：左边是标题和两条事实型入口，右边是一列数字。左右共用顶部那条细线。
+  // 首条是置顶文章，日期不一定最新 —— 这里要的是真正的最大日期
+  const latestDate = fmtDate(results.reduce((acc, p) => (dateTs(p.date) > dateTs(acc) ? p.date : acc), ''))
+  const heroSection = page === 1 ? `
+<section class="hero">
+  <div>
+    <div class="hero-kicker">${lang==='en'?'Virtual cards':'虚拟卡'}</div>
+    <h1 class="hero-title">${lang==='en'
+      ? 'What each virtual card is actually like to use'
+      : '每家虚拟卡实际用起来是什么样'}</h1>
+    <p class="hero-lede">${lang==='en'
+      ? 'Numbers come from cards we opened ourselves. Fees are worked out from actual charges; where KYC stalled and how long funding took are recorded per card. Anything we could not verify is marked unverified.'
+      : '数字来自我们自己开的卡。费率按实际扣款算，KYC 和到账时间记在各篇里。核实不了的说法会标出来。'}</p>
+    <div class="hero-actions">
+      <a class="btn" href="${base}virtual-credit-card/">${lang==='en'?'Browse the archive':'进入评测目录'}</a>
+      <a class="btn-quiet" href="${base}about/">${lang==='en'?'How these are tested':'评测是怎么做的'}</a>
+    </div>
+  </div>
+  <div class="facts">
+    <div class="fact"><span class="k">${lang==='en'?'Entries':'收录条目'}</span><span class="v">${total}</span></div>
+    <div class="fact"><span class="k">${lang==='en'?'Last update':'最近更新'}</span><span class="v">${esc(latestDate)}</span></div>
+    <div class="fact"><span class="k">${lang==='en'?'Categories':'分类'}</span><span class="v">${String((lang==='en'?CATS_EN:CATS_ZH).length).padStart(2,'0')}</span></div>
+  </div>
+</section>` : `<h1 class="page-title">${lang==='en'?`Archive, page ${page}`:`文章归档第 ${page} 页`}</h1>`
+  // 区块头：上细线 + 左侧标题 + 右侧「本页 / 总数」
+  const shown = pageItems.length
+  const sectionHead = `<div class="section-head">
+    <h2>${page>1?(lang==='en'?'Older entries':'更早的条目'):(lang==='en'?'Latest entries':'最新条目')}</h2>
+    <span class="count">${String(shown).padStart(2,'0')} / ${total}</span>
+  </div>`
   const siteUrl = SITE + base
   const homeJsonld = page === 1 ? {
     '@context': 'https://schema.org',
@@ -1064,17 +1131,17 @@ async function renderHomePage(c, lang, page) {
       { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'VirtualCardx', url: SITE+'/', logo: { '@type': 'ImageObject', url: `${SITE}/media/1556-cropped-logo.png`, width: 128, height: 45 } }
     ]
   } : undefined
-  const body = heroSection + cards + pagination
+  const body = heroSection + sectionHead + `<div class="grid">${cards}</div>` + pagination
   const pageTitle = page>1
-    ? (lang==='en' ? `Latest Articles — Page ${page} - VirtualCardx` : `最新文章第 ${page} 页 - VirtualCardx`)
-    : (lang==='en' ? 'VirtualCardx | Virtual Credit Card Reviews & Recommendations' : '虚拟信用卡平台推荐与评测 | VirtualCardx 60+平台实测')
+    ? (lang==='en' ? `Archive, page ${page} - VirtualCardx` : `文章归档第 ${page} 页 - VirtualCardx`)
+    : (lang==='en' ? 'VirtualCardx | Virtual card records: fees, KYC, funding' : '虚拟信用卡实测记录：费率、KYC、充值到账 | VirtualCardx')
   const pageDesc = page>1
-    ? (lang==='en' ? `Page ${page} of the archive.` : `文章归档第 ${page} 页。`)
-    : (lang==='en' ? 'Hands-on notes on 60+ virtual cards: fees, KYC, funding, risk controls, and where each one is actually worth using.' : '60+ 虚拟信用卡的实测记录：费率怎么算、KYC 卡在哪、充值多久到账、什么情况会被风控。')
+    ? (lang==='en' ? `Archive page ${page}.` : `文章归档第 ${page} 页。`)
+    : (lang==='en' ? 'What each virtual card is like to use: fee maths, where KYC stalls, funding time, and what trips risk checks.' : '各家虚拟卡实际用起来是什么样：费率怎么算、KYC 卡在哪、充值多久到账、什么情况会被风控。')
   return layout(lang,
     pageTitle,
     pageDesc,
-    body, { recentPosts: recent, path: page>1?`page/${page}/`:'', jsonld: homeJsonld })
+    body, { noSidebar: true, path: page>1?`page/${page}/`:'', jsonld: homeJsonld })
 }
 
 // ============ 具体路由 ============
@@ -1728,18 +1795,28 @@ app.get('*', async (c) => {
           let content = zp.content
           content = await rewriteImages(c, content, zp.title)
           const recent = await recentPosts(c, 'en')
+          const plainZh = String(zp.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '')
+          const readMinZh = Math.max(1, Math.round(plainZh.length / 400))
           const body = `<article class="article">
+            <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/en/">Home</a> / <span>${esc(zp.title)}</span></nav>
             <div class="article-header">
               <h1>${esc(zp.title)}</h1>
               <div class="article-meta">
                 <span>${esc(fmtDate(zp.date))}</span>
-                <span class="sep">·</span>
+                <span class="sep">/</span>
                 <span>Kenneth Lau</span>
+                <span class="sep">/</span>
+                <span>${readMinZh} min read</span>
               </div>
+              <dl class="only-mobile">
+                <dt>Updated</dt><dd>${esc(fmtDate(zp.date))}</dd>
+                <dt>Source</dt><dd>Chinese original</dd>
+                <dt>Read</dt><dd>${readMinZh} min</dd>
+              </dl>
             </div>
             <div class="content">${content}</div>
             <div class="article-footer">
-              <a class="lang-toggle" href="/${postPath}/">🌐 阅读中文版</a>
+              <a class="lang-toggle" href="/${postPath}/">阅读中文版</a>
             </div>
           </article>`
           return c.html(layout('en', `${zp.title} - VirtualCardx`,
@@ -1785,15 +1862,62 @@ app.get('*', async (c) => {
     const storedModifiedDate = (p.modified || '').slice(0,10)
     // Imported records can carry a stale modified timestamp. Schema dates must never run backwards.
     const modifiedDate = storedModifiedDate >= publishedDate ? storedModifiedDate : publishedDate
+    // 正文字数：只算可见文本，用来给"读多久"这个事实
+    const plain = String(p.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '')
+    const wordCount = plain.length
+    const readMin = Math.max(1, Math.round(wordCount / 400))
+    // 分类名（一篇文章通常挂 1 个）
+    let catLabel = ''
+    try {
+      const ids = JSON.parse(p.category_ids || '[]') || []
+      if (ids.length) {
+        const { results: cr } = await c.env.DB.prepare(
+          `SELECT name FROM categories WHERE id IN (${ph(ids.length)})`
+        ).bind(...ids).all()
+        catLabel = cr.map(r => r.name).slice(0, 2).join(' / ')
+      }
+    } catch { catLabel = '' }
+    // 手机上侧栏会堆到全文之后，所以关键事实要在标题下面先给一遍
+    const factSummary = `<dl class="only-mobile">
+      <dt>${lang==='en'?'Updated':'更新'}</dt><dd>${esc(fmtDate(p.date))}</dd>
+      ${catLabel?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
+      <dt>${lang==='en'?'Read':'预计'}</dt><dd>${lang==='en'?`${readMin} min`:`${readMin} 分钟`}</dd>
+    </dl>`
+    const articleSidebar = `
+      <div class="widget">
+        <h3>${lang==='en'?'Record':'条目信息'}</h3>
+        <dl class="kv">
+          <dt>${lang==='en'?'Updated':'更新'}</dt><dd>${esc(modifiedDate)}</dd>
+          <dt>${lang==='en'?'First run':'首发'}</dt><dd>${esc(publishedDate)}</dd>
+          ${catLabel?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
+          <dt>${lang==='en'?'Length':'正文'}</dt><dd>${wordCount} ${lang==='en'?'chars':'字'}</dd>
+          <dt>${lang==='en'?'Read':'预计'}</dt><dd>${lang==='en'?`${readMin} min`:`${readMin} 分钟`}</dd>
+          <dt>${lang==='en'?'Lang':'语言'}</dt><dd>${lang==='en'?'English':'中文'}</dd>
+        </dl>
+      </div>
+      <div class="widget author-card">
+        <h3>${lang==='en'?'Written by':'作者'}</h3>
+        <div class="author-name">Kenneth Lau</div>
+        <p>${lang==='en'
+          ? 'The card was opened and charged; the charges are recorded in the post.'
+          : '卡是自己开的，扣款记录在文里。'}</p>
+      </div>
+      <div class="widget">
+        <h3>${lang==='en'?'Recent':'最近更新'}</h3>
+        ${recent}
+      </div>`
     const body = `<article class="article">
       <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(p.title)}</span></nav>
       <div class="article-header">
         <h1>${esc(p.title)}</h1>
         <div class="article-meta">
           <span>${esc(fmtDate(p.date))}</span>
-          <span class="sep">·</span>
+          <span class="sep">/</span>
           <a class="author-link" href="${base}about/">Kenneth Lau</a>
+          <span class="sep">/</span>
+          <span>${lang==='en'?`${readMin} min read`:`约 ${readMin} 分钟`}</span>
         </div>
+        ${factSummary}
       </div>
       ${heroHtml}
       <div class="content">${content}</div>
@@ -1803,7 +1927,7 @@ app.get('*', async (c) => {
     </article>`
     return c.html(layout(lang, `${p.title} - VirtualCardx`,
       articleDesc, body,
-      { recentPosts: recent, path: `${path}/`, ogType: 'article',
+      { sidebar: articleSidebar, path: `${path}/`, ogType: 'article',
         jsonld: { '@context':'https://schema.org', '@graph': [
           { '@type':'Article', '@id':`${articleUrl}#article`, headline:p.title.slice(0,110), description:articleDesc, url:articleUrl,
             image:articleImage ? [articleImage] : undefined,
