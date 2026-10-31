@@ -261,6 +261,7 @@ html[lang="zh"] .label{letter-spacing:.06em}
 
 /* 输入框：1px 边框、白底、2px 圆角、无内阴影 */
 .search-box{display:flex;align-items:center}
+.nav-search{display:none}
 .search-box input{width:148px;height:32px;border:1px solid var(--rule);border-radius:2px;background:var(--paper);padding:0 8px;font-size:13px;font-family:var(--sans);color:var(--ink)}
 .search-box input::placeholder{color:var(--ink-2)}
 .search-box input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
@@ -271,45 +272,47 @@ html[lang="zh"] .label{letter-spacing:.06em}
 
 /* ===== 分类条：文字链接，一条细线收口 ===== */
 .cat-bar{border-bottom:1px solid var(--rule)}
-.cat-bar-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:40px;display:flex;align-items:center;gap:24px;overflow-x:auto}
+.cat-bar-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:36px;display:flex;align-items:center;gap:24px;overflow-x:auto}
 .cat-bar-inner::-webkit-scrollbar{display:none}
 .cat-bar a{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
 .cat-bar a:hover{color:var(--signal);text-decoration:none}
 
 /* ===== 主布局：详情页 19rem 侧栏 ===== */
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;max-width:var(--w);margin:0 auto;padding:36px 16px 56px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;max-width:var(--w);margin:0 auto;padding:30px 16px 56px}
 .layout.no-sidebar{grid-template-columns:minmax(0,1fr)}
 .layout>main{min-width:0}
 
 /* ===== Hero：不居中。左标题，右三条数字事实，共用同一条起始横线 ===== */
-.hero{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;border-top:1px solid var(--rule);padding-top:26px;margin-bottom:56px}
-.hero-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:16px;font-family:var(--mono);font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2)}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;border-top:1px solid var(--rule);padding-top:24px;margin-bottom:44px}
+.hero-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;font-family:var(--mono);font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2)}
 html[lang="zh"] .hero-kicker{letter-spacing:.06em}
 .hero-kicker::before{content:'';width:9px;height:9px;background:var(--signal);display:block}
-.hero-title{font-size:2.7rem;line-height:1.1;font-weight:600;margin:0 0 14px;max-width:30ch}
-/* 中文没有升降部，1.1 的行高会把行挤在一起 */
-html[lang="zh"] .hero-title{line-height:1.18}
-.hero-lede{font-size:15px;line-height:1.65;color:var(--ink-2);max-width:54ch;margin:0 0 24px}
+.hero-title{font-size:clamp(1.6rem,4.2vw,3rem);line-height:1.08;font-weight:600;margin:0 0 16px;text-wrap:balance}
+/* 中文没有升降部，1.08 的行高会把行挤在一起 */
+html[lang="zh"] .hero-title{line-height:1.2}
+.hero-lede{font-size:15px;line-height:1.7;color:var(--ink-2);max-width:52ch;margin:0 0 26px;text-wrap:pretty}
 .hero-actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;height:38px;padding:0 18px;background:var(--fill);color:#fff;border:1px solid var(--fill);border-radius:2px;font-size:13px;font-weight:600;letter-spacing:.01em}
 .btn:hover{background:var(--signal);border-color:var(--signal);color:#fff;text-decoration:none}
 .btn-quiet{font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--rule);padding-bottom:1px}
 .btn-quiet:hover{color:var(--signal);border-color:var(--signal);text-decoration:none}
+/* 右列与左列顶端对齐：第一行不带额外上内边距，与 kicker 同一水平线起步 */
 .facts{display:flex;flex-direction:column;min-width:0}
-.fact{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule)}
-.fact:first-child{padding-top:2px}
+.fact{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid var(--rule)}
+.fact:first-child{padding-top:0}
 .fact .k{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:0}
 .fact .v{font-family:var(--mono);font-size:19px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
 
-/* ===== 区块标题：上细线 + 左标题 + 右计数 ===== */
-.section-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;border-top:1px solid var(--rule);padding-top:11px;margin-bottom:14px}
+/* ===== 区块标题：当表格表头用。上细线收住上一块，标题直接压在网格顶线上 ===== */
+.section-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;border-top:1px solid var(--rule);padding:11px 0 9px;margin:0}
 .section-head h2{font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.11em;text-transform:uppercase;color:var(--ink)}
 html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-weight:600;letter-spacing:0}
 .section-head .count{font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
 
-/* ===== 列表：共享细线网格。容器 border-top+left，格子自己 border-right+bottom，
-   末行不满也不会露出灰块 ===== */
+/* ===== 列表：共享细线网格。容器 border-left，格子自己 border-right+bottom。
+   不满的末行补空单元格（.cell-empty），否则最后一行会缺一块边框，看着像没画完 ===== */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
+.cell-empty{pointer-events:none}
 .cell{position:relative;display:flex;flex-direction:column;padding:22px 24px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
 .cell-no{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-bottom:10px;font-variant-numeric:tabular-nums}
 .cell h3{font-size:16px;font-weight:600;line-height:1.36;margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -323,10 +326,12 @@ html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-wei
 .cell-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:11px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .cell-foot .arrow{color:var(--ink);display:inline-block;transition:transform .12s}
 .cell:hover .arrow{transform:translateX(3px)}
+/* 「中文原文」这类旁注：靠一条竖线与时长分开，否则两个词会连成一句话 */
+.tag{margin-left:8px;padding-left:8px;border-left:1px solid var(--rule);color:var(--ink-2)}
 
-/* ===== 分页：等宽数字，细线分隔，当前页用最深填充 ===== */
-.pagination{display:flex;align-items:stretch;flex-wrap:wrap;border-top:1px solid var(--rule)}
-.pagination a,.pagination .cur,.pagination .dots,.pagination .disabled{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0 8px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+/* 分页：等宽数字，细线分隔，当前页用最深填充 */
+.pagination{display:flex;align-items:stretch;flex-wrap:wrap;margin-top:24px;border-top:1px solid var(--rule)}
+.pagination a,.pagination .cur,.pagination .dots,.pagination .disabled{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:40px;padding:0 8px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
 .pagination a:hover{background:var(--surface);color:var(--ink);text-decoration:none}
 .pagination .cur{background:var(--fill);color:#fff}
 .pagination .dots{color:var(--ink-2);min-width:20px}
@@ -334,7 +339,8 @@ html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-wei
 .pagination .page-info{margin-left:auto;padding-left:16px;display:inline-flex;align-items:center;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
 
 /* ===== 侧栏 ===== */
-.sidebar{display:flex;flex-direction:column;gap:34px;position:sticky;top:88px;align-self:start}
+/* 侧栏吸顶位置 = 页头 64 + 分类条 36 + 4 的呼吸位，低一点会被页头压住 */
+.sidebar{display:flex;flex-direction:column;gap:34px;position:sticky;top:104px;align-self:start}
 .widget{border-top:1px solid var(--rule);padding-top:10px}
 .widget h3{font-family:var(--mono);font-size:12px;font-weight:400;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2);margin:0 0 11px}
 html[lang="zh"] .widget h3{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:0}
@@ -357,7 +363,8 @@ html[lang="zh"] .article h1{line-height:1.32}
 .article-meta .sep{color:var(--rule)}
 .article-meta a{color:var(--ink-2)}
 .article-meta a:hover{color:var(--signal)}
-.breadcrumbs{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin:0 0 12px;line-height:1.5}
+/* 面包屑兼作页面顶线：和右侧栏第一块的 border-top 落在同一条水平线上 */
+.breadcrumbs{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin:0 0 12px;line-height:1.5;border-top:1px solid var(--rule);padding-top:11px}
 .breadcrumbs a{color:var(--ink-2)}
 .breadcrumbs a:hover{color:var(--signal)}
 .article-hero{width:100%;max-height:420px;object-fit:cover;margin:22px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
@@ -385,9 +392,13 @@ pre code{background:none;padding:0;white-space:pre}
 .lang-toggle:hover{color:var(--signal);border-color:var(--signal);text-decoration:none}
 
 /* ===== 页面 / 分类 / 搜索 ===== */
-.page-title{font-size:1.75rem;margin:0 0 8px}
-.page-lead{font-size:13px;color:var(--ink-2);margin:0 0 24px;max-width:62ch}
-.page-content{font-size:16px;line-height:1.75}
+/* ch 单位量的是拉丁字符宽度，中文会提前折行留孤字，所以导语按 rem 定宽 */
+.page-title{font-size:2rem;margin:0 0 8px;text-wrap:balance}
+.page-lead{font-size:13px;color:var(--ink-2);margin:0 0 24px;max-width:46rem;text-wrap:pretty}
+/* 搜索页没有 lead，标题直接接表头，需要自己把距离撑开 */
+.page-title+.section-head{margin-top:24px}
+/* 单栏长文：铺满 1152 容器时中文一行 55 字以上，读起来会串行 */
+.page-content{font-size:16px;line-height:1.75;max-width:44rem}
 .page-content h2{font-size:1.24rem;margin:32px 0 12px}
 .page-content h3{font-size:1.06rem;margin:26px 0 10px}
 .page-content p{margin:0 0 16px}
@@ -395,6 +406,7 @@ pre code{background:none;padding:0;white-space:pre}
 .page-content li{margin-bottom:6px}
 .page-content img{margin:18px 0}
 .page-content a{text-decoration:underline;text-underline-offset:2px}
+.page-content table{display:block;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:22px 0;font-size:13px}
 .post-list{list-style:none}
 .post-list li{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 0;border-bottom:1px solid var(--rule)}
 .post-list a{color:var(--ink);font-size:14px}
@@ -413,7 +425,7 @@ html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-sp
 .footer-bottom{max-width:var(--w);margin:26px auto 0;padding:14px 16px 0;border-top:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--ink-2)}
 
 /* ===== 404 ===== */
-.notfound{padding:68px 0;max-width:54ch}
+.notfound{border-top:1px solid var(--rule);padding:40px 0 60px;max-width:54ch}
 .notfound .code{font-family:var(--mono);font-size:12px;letter-spacing:.11em;color:var(--ink-2)}
 .notfound h1{font-size:1.6rem;margin:10px 0 10px}
 .notfound p{font-size:14px;color:var(--ink-2);margin-bottom:20px}
@@ -421,28 +433,48 @@ html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-sp
 
 /* ===== 响应式 ===== */
 @media(max-width:900px){
-  .layout{grid-template-columns:minmax(0,1fr);gap:0;padding:28px 16px 48px}
+  .layout{grid-template-columns:minmax(0,1fr);gap:0;padding:24px 16px 48px}
   .sidebar{display:none}
-  .hero{grid-template-columns:minmax(0,1fr);gap:28px;margin-bottom:40px}
-  .hero-title{font-size:1.5rem}
-  .grid{grid-template-columns:minmax(0,1fr)}
+  .hero{grid-template-columns:minmax(0,1fr);gap:22px;margin-bottom:32px}
+  .hero-lede{margin-bottom:20px}
+  /* 三条数字事实竖排会吃掉近 200px 首屏，手机端压成一行三列 */
+  .facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-bottom:1px solid var(--rule)}
+  .fact{flex-direction:column;align-items:flex-start;gap:2px;padding:10px 0 11px;border-bottom:none}
+  .fact+.fact{border-left:1px solid var(--rule);padding-left:12px}
+  .fact .v{font-size:16px}
+  .fact .k{font-size:11px}
+  /* 网格靠 minmax(296px) 自己退回一列，不用在这里写死 */
+  .cell-empty{display:none}
   .only-mobile{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:6px 12px;margin:0 0 20px;padding:12px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
   .only-mobile dt{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
   .only-mobile dd{margin:0;font-family:var(--mono);font-size:12px;color:var(--ink);text-align:right}
-  .article h1{font-size:1.55rem}
+  .article h1{font-size:1.6rem}
+}
+/* 624px 以下网格只剩一列，此时占位格会变成两行空白，直接隐藏 */
+@media(max-width:630px){
+  .cell-empty{display:none}
+}
+/* 370px 以下三列塞不下 "2026-10-30"（会折成两行），退回竖排 */
+@media(max-width:370px){
+  .facts{display:flex;flex-direction:column;border-bottom:none}
+  .fact{flex-direction:row;align-items:baseline;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--rule)}
+  .fact+.fact{border-left:none;padding-left:0}
+  .fact .v{font-size:17px}
+  .fact .k{font-size:12px}
 }
 @media(max-width:760px){
-  .header-inner{height:56px;flex-wrap:wrap;padding:0 16px;gap:0}
-  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);flex-direction:column;align-items:stretch;gap:0;border-bottom:1px solid var(--rule);z-index:99}
+  .header-inner{height:56px;flex-wrap:nowrap;padding:0 16px;gap:0;position:relative}
+  /* 导航收进下拉面板，搜索框也一起进去：否则 header 变成两行，sticky 时白占 104px */
+  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);flex-direction:column;align-items:stretch;gap:0;border-bottom:1px solid var(--rule);z-index:99;margin-right:0}
   .main-nav.open{display:flex}
   .main-nav a{padding:13px 16px;border-bottom:1px solid var(--rule);font-size:14px;color:var(--ink)}
   .main-nav a:last-child{border-bottom:none}
-  .menu-toggle{display:flex;order:2;margin-left:auto}
-  .header-inner{position:relative}
-  .nav-right{order:3;width:100%;padding:8px 0;border-top:1px solid var(--rule);gap:12px}
-  .search-box{flex:1;min-width:0}
-  .search-box input{width:auto;flex:1;min-width:0}
-  .logo{order:1}
+  .nav-search{display:flex;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .nav-search input{flex:1;width:auto;min-width:0;height:34px}
+  .nav-search button{height:34px}
+  .head-search{display:none}
+  .nav-right{margin-left:auto;width:auto;padding:0;border-top:none;gap:14px}
+  .menu-toggle{display:flex}
   .cat-bar-inner{gap:18px;padding:0 16px}
   .page-title{font-size:1.4rem}
   .cell{padding:20px 18px}
@@ -668,21 +700,25 @@ ${opts.extraHead||''}
 <header class="site-header">
   <div class="header-inner">
     <a class="logo" href="${base}"><img class="logo-img" src="/media/1556-cropped-logo.png" alt="VirtualCardx" width="128" height="45"> VirtualCardx</a>
-    <button class="menu-toggle" aria-label="${lang==='en'?'Menu':'菜单'}" aria-expanded="false">
-      <span class="bar"></span><span class="bar"></span><span class="bar"></span>
-    </button>
     <nav class="main-nav" id="mainNav">
+      <form class="search-box nav-search" action="${base}" method="get" role="search">
+        <input type="search" name="s" placeholder="${searchPlaceholder}" aria-label="${searchPlaceholder}">
+        <button type="submit">${lang==='en'?'Go':'搜索'}</button>
+      </form>
       <a href="${base}">${homeLabel}</a>
       <a href="${base}virtual-credit-card/">${lang==='en'?'Virtual Card Reviews':'虚拟卡评测'}</a>
       <a href="${base}about/">${lang==='en'?'About':'关于'}</a>
       <a href="${base}contact/">${lang==='en'?'Contact':'联系'}</a>
     </nav>
     <div class="nav-right">
-      <form class="search-box" action="${base}" method="get">
-        <input type="search" name="s" placeholder="${searchPlaceholder}" aria-label="Search">
+      <form class="search-box head-search" action="${base}" method="get" role="search">
+        <input type="search" name="s" placeholder="${searchPlaceholder}" aria-label="${searchPlaceholder}">
         <button type="submit">${lang==='en'?'Go':'搜索'}</button>
       </form>
       <a class="lang-switch" href="${altHref}">${altLabel}</a>
+      <button class="menu-toggle" aria-label="${lang==='en'?'Menu':'菜单'}" aria-expanded="false">
+        <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+      </button>
     </div>
   </div>
 </header>
@@ -850,16 +886,22 @@ async function renderPostCards(c, lang, posts, opts = {}) {
     }
   }
   // 分类 id -> 名称（只有 3 个分类，一次全表查询比每篇 JOIN 便宜）
+  // 英文站不能直接吐 categories.name（库里存的是中文），按 slug 走一次映射
   const catName = new Map()
+  const catSlug = new Map()
   if (opts.showCat) {
-    const rows = await queryAll(c, 'SELECT id, name FROM categories', [])
-    for (const r of rows) catName.set(r.id, r.name)
+    const rows = await queryAll(c, 'SELECT id, name, slug FROM categories', [])
+    for (const r of rows) { catName.set(r.id, r.name); catSlug.set(r.id, r.slug) }
   }
   const catOf = (p) => {
     if (!catName.size || !p.category_ids) return ''
     let ids = []
     try { ids = JSON.parse(p.category_ids) || [] } catch { ids = [] }
-    for (const id of ids) if (catName.has(id)) return catName.get(id)
+    for (const id of ids) {
+      if (!catName.has(id)) continue
+      if (lang === 'en') return CATEGORY_NAMES_EN[catSlug.get(id)] || ''
+      return catName.get(id)
+    }
     return ''
   }
   // 阅读时长：按每分钟 400 字估算正文字数
@@ -889,6 +931,15 @@ async function renderPostCards(c, lang, posts, opts = {}) {
       </div>
     </article>`
   }).join('')
+}
+
+// 列表网格的外壳。末行不满时补空单元格：列数在 1/2/3 之间变，补到 3 的倍数
+// 既能填满 3 列也能填满 2 列；手机单列时这些空格子由 CSS 隐藏。
+function gridBlock(cards, count) {
+  if (!cards) return ''
+  const pad = (3 - (count % 3)) % 3
+  const spacers = '<div class="cell cell-empty" aria-hidden="true"></div>'.repeat(pad)
+  return `<div class="grid">${cards}${spacers}</div>`
 }
 
 // ============ 路由 ============
@@ -939,7 +990,7 @@ async function handleSearch(c, lang, q) {
   const cards = await renderPostCards(c, lang, results, { showCat: true })
   const count = results.length
   const listHtml = cards
-    ? `<div class="grid">${cards}</div>`
+    ? gridBlock(cards, count)
     : `<p class="empty-note">${lang==='en'
       ? `Nothing matched “${esc(q)}”. Try a card name, or a shorter phrase.`
       : `没有匹配 “${esc(q)}” 的内容。可以试试平台名，或者把关键词缩短一点。`}</p>`
@@ -947,7 +998,7 @@ async function handleSearch(c, lang, q) {
     ? `<div class="section-head"><h2>${lang==='en'?'Matches':'匹配条目'}</h2><span class="count">${String(count).padStart(2,'0')}</span></div>`
     : ''
   const heading = lang==='en' ? `Results for “${esc(q)}”` : `“${esc(q)}” 的搜索结果`
-  const body = `<h1 class="page-title">${heading}</h1>${sectionHead}${listHtml}`
+  const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${baseOf(lang)}">${lang==='en'?'Home':'首页'}</a></nav><h1 class="page-title">${heading}</h1>${sectionHead}${listHtml}`
   const searchDesc = lang==='en'
     ? `Search results for “${q}” on VirtualCardx. Browse related virtual card reviews, payment guides, and practical tutorials.`
     : `VirtualCardx 站内“${q}”搜索结果，查找相关虚拟卡评测、跨境支付指南与实用教程。`
@@ -1018,7 +1069,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   // 渲染网格 (摘要配对回退在 renderPostCards 内批量处理)
   const cards = await renderPostCards(c, lang, pageItems, { showZhTag: true })
   const listHtml = cards
-    ? `<div class="grid">${cards}</div>`
+    ? gridBlock(cards, pageItems.length)
     : `<p class="empty-note">${lang==='en'?'Nothing filed under this category yet.':`这个分类下还没有文章。`}</p>`
   // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? catUrl : `${catUrl}page/${p}/`
@@ -1131,7 +1182,7 @@ async function renderHomePage(c, lang, page) {
       { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'VirtualCardx', url: SITE+'/', logo: { '@type': 'ImageObject', url: `${SITE}/media/1556-cropped-logo.png`, width: 128, height: 45 } }
     ]
   } : undefined
-  const body = heroSection + sectionHead + `<div class="grid">${cards}</div>` + pagination
+  const body = heroSection + sectionHead + gridBlock(cards, pageItems.length) + pagination
   const pageTitle = page>1
     ? (lang==='en' ? `Archive, page ${page} - VirtualCardx` : `文章归档第 ${page} 页 - VirtualCardx`)
     : (lang==='en' ? 'VirtualCardx | Virtual card records: fees, KYC, funding' : '虚拟信用卡实测记录：费率、KYC、充值到账 | VirtualCardx')
@@ -1739,7 +1790,8 @@ app.get('*', async (c) => {
     pageContent = await rewriteImages(c, pageContent, pg.title)
     const base = baseOf(lang)
     const pageUrl = `${SITE}${base}${pg.slug}/`
-    const body = `<div class="page-content"><nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(pg.title)}</span></nav><h1 class="page-title">${esc(pg.title)}</h1>${pageContent}</div>`
+    // 面包屑只留「首页」：页面标题下面就是 H1，再写一遍标题是重复
+    const body = `<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a></nav><h1 class="page-title">${esc(pg.title)}</h1><div class="page-content">${pageContent}</div>`
     const pageType = pg.slug==='about' ? 'AboutPage' : pg.slug==='contact' ? 'ContactPage' : 'WebPage'
     const pageJsonld = { '@context':'https://schema.org', '@graph': [
       { '@type':pageType, '@id':`${pageUrl}#webpage`, url:pageUrl, name:pg.title, inLanguage:lang==='en'?'en':'zh-CN', isPartOf:{'@id':`${SITE}${base}#website`} },
@@ -1798,7 +1850,7 @@ app.get('*', async (c) => {
           const plainZh = String(zp.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '')
           const readMinZh = Math.max(1, Math.round(plainZh.length / 400))
           const body = `<article class="article">
-            <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/en/">Home</a> / <span>${esc(zp.title)}</span></nav>
+            <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/en/">Home</a></nav>
             <div class="article-header">
               <h1>${esc(zp.title)}</h1>
               <div class="article-meta">
@@ -1866,22 +1918,25 @@ app.get('*', async (c) => {
     const plain = String(p.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '')
     const wordCount = plain.length
     const readMin = Math.max(1, Math.round(wordCount / 400))
-    // 分类名（一篇文章通常挂 1 个）
+    // 分类名（一篇文章通常挂 1 个），同时拿 slug 给面包屑做链接
     let catLabel = ''
+    let catHref = ''
     try {
       const ids = JSON.parse(p.category_ids || '[]') || []
       if (ids.length) {
         const { results: cr } = await c.env.DB.prepare(
-          `SELECT name FROM categories WHERE id IN (${ph(ids.length)})`
+          `SELECT name, slug FROM categories WHERE id IN (${ph(ids.length)})`
         ).bind(...ids).all()
         catLabel = cr.map(r => r.name).slice(0, 2).join(' / ')
+        if (cr[0]) catHref = `${base}${cr[0].slug}/`
       }
     } catch { catLabel = '' }
-    // 手机上侧栏会堆到全文之后，所以关键事实要在标题下面先给一遍
+    // 手机上侧栏会堆到全文之后，标题下只补 meta 里没有的三项：
+    // 日期/作者/时长上面已经写过一遍，再列一次就是重复。
     const factSummary = `<dl class="only-mobile">
-      <dt>${lang==='en'?'Updated':'更新'}</dt><dd>${esc(fmtDate(p.date))}</dd>
       ${catLabel?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
-      <dt>${lang==='en'?'Read':'预计'}</dt><dd>${lang==='en'?`${readMin} min`:`${readMin} 分钟`}</dd>
+      <dt>${lang==='en'?'First run':'首发'}</dt><dd>${esc(publishedDate)}</dd>
+      <dt>${lang==='en'?'Length':'正文'}</dt><dd>${wordCount} ${lang==='en'?'chars':'字'}</dd>
     </dl>`
     const articleSidebar = `
       <div class="widget">
@@ -1907,7 +1962,7 @@ app.get('*', async (c) => {
         ${recent}
       </div>`
     const body = `<article class="article">
-      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${esc(p.title)}</span></nav>
+      <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a>${catHref?` / <a href="${catHref}">${esc(catLabel)}</a>`:''}</nav>
       <div class="article-header">
         <h1>${esc(p.title)}</h1>
         <div class="article-meta">

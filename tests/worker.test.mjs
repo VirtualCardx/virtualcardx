@@ -337,3 +337,40 @@ test('媒体上传失败时回滚 DB 记录', async () => {
   assert.equal(res.status, 502)
   assert.equal(tables.media.filter(m => m.filename === 'fail.png').length, 0, '不应留下无文件的 media 记录')
 })
+
+// ---------- 列表网格布局 ----------
+
+test('列表网格按列数补齐占位格，末行不留缺口', async () => {
+  const { env, ctx } = fresh()
+  // fixtures 里分类 7 有 2 篇，补 1 格到 3 的倍数
+  const cat = await (await fetchPath(env, ctx, '/virtual-credit-card/')).text()
+  assert.equal((cat.match(/class="cell cell-empty"/g) || []).length, 1, '2 张卡片应补 1 个占位格')
+
+  // 首页 4 篇 -> 补 2 格
+  const home = await (await fetchPath(env, ctx, '/')).text()
+  assert.equal((home.match(/class="cell cell-empty"/g) || []).length, 2, '4 张卡片应补 2 个占位格')
+
+  // 正好满行时不补
+  const many = fresh({
+    posts: basePosts.filter(p => p.lang === 'zh').slice(0, 3),
+  })
+  const exact = await (await fetchPath(many.env, many.ctx, '/')).text()
+  assert.equal((exact.match(/class="cell cell-empty"/g) || []).length, 0, '3 张卡片刚好满行')
+})
+
+test('英文首页的分类名走英文映射，不吐库里的中文名', async () => {
+  const { env, ctx } = fresh({
+    posts: [
+      ...basePosts,
+      {
+        id: 301, lang: 'en', slug: 'en-cat-post', title: 'Card With Category',
+        excerpt: 'Has a category.', content: '<p>Body</p>', path: 'en-cat-post',
+        date: '2026-05-01', modified: '2026-05-01', status: 'publish',
+        featured_media: null, category_ids: '[7]', tag_ids: '[]', translation_id: null, sticky: 0,
+      },
+    ],
+  })
+  const html = await (await fetchPath(env, ctx, '/en/')).text()
+  assert.ok(html.includes('Virtual Card Reviews'), '英文站应显示分类的英文名')
+  assert.ok(!html.includes('虚拟卡评测'), '英文站不应出现中文分类名')
+})
