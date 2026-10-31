@@ -5,3 +5,10 @@ node_modules/
 *.bin
 .DS_Store
 package-lock.json
+
+# 本地预览脚手架（渲染 mock 数据看版式用，不入库）
+.preview/
+.preview.mjs
+.serve.mjs
+shot-*.png
+.playwright-cli/

@@ -203,181 +203,201 @@ const SITE = 'https://virtualcardx.com'
 // ============ 共享 CSS ============
 const CSS = `
 :root{
-  --primary:#2563eb; --primary-dark:#1d4ed8; --primary-light:#eff6ff;
-  --accent:#f59e0b; --text:#1f2937; --text-light:#6b7280;
-  --bg:#f8fafc; --card:#ffffff; --border:#e5e7eb;
-  --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 14px rgba(0,0,0,.05);
-  --shadow-lg:0 8px 30px rgba(0,0,0,.12);
+  /* 单色墨系 + 一个砖红强调色。刻意不用蓝紫渐变: 那是模板站最明显的标记。 */
+  --primary:#8c3325; --primary-dark:#6f2719; --primary-light:#f5ece9;
+  --accent:#8c3325;
+  --text:#1b1c1e; --text-light:#6d7176;
+  --bg:#ffffff; --wash:#f6f5f1;
+  --border:#dcd9d3; --border-soft:#ebe8e3;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.75;font-size:16px}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.8;font-size:17px;text-rendering:optimizeLegibility}
 a{color:var(--primary);text-decoration:none}
-a:hover{color:var(--primary-dark)}
+a:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 img{max-width:100%;height:auto}
-.container{max-width:1140px;margin:0 auto;padding:0 20px}
+::selection{background:var(--primary-light);color:var(--primary-dark)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:3px;border-radius:2px}
+.container{max-width:1120px;margin:0 auto;padding:0 24px}
 
 /* 顶部导航 */
-.site-header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.04)}
-.header-inner{max-width:1140px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:64px}
-.logo{font-size:1.35rem;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px}
-.logo-img{height:38px;width:auto;display:block}
-.logo .logo-badge{background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800}
-.main-nav{display:flex;align-items:center;gap:22px}
-.main-nav a{color:var(--text);font-size:.95rem;font-weight:500;padding:6px 2px;border-bottom:2px solid transparent}
-.main-nav a:hover{color:var(--primary);border-bottom-color:var(--primary)}
-.nav-right{display:flex;align-items:center;gap:12px}
+.site-header{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.header-inner{max-width:1120px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:62px;gap:16px}
+.logo{font-size:1.02rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px;letter-spacing:-.01em}
+.logo:hover{text-decoration:none;color:var(--primary)}
+.logo-img{height:30px;width:auto;display:block}
+.main-nav{display:flex;align-items:center;gap:26px}
+.main-nav a{color:var(--text);font-size:.94rem;font-weight:500;padding:4px 0}
+.main-nav a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:6px;text-decoration-thickness:1px}
+.nav-right{display:flex;align-items:center;gap:18px}
 /* 汉堡菜单按钮 (默认隐藏, 移动端显示) */
-.menu-toggle{display:none;background:none;border:none;cursor:pointer;padding:8px;flex-direction:column;gap:5px;border-radius:6px}
-.menu-toggle .bar{display:block;width:22px;height:2.5px;background:var(--text);border-radius:2px;transition:transform .25s,opacity .25s}
-.menu-toggle:hover{background:var(--bg)}
-.menu-toggle[aria-expanded="true"] .bar:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+.menu-toggle{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-direction:column;gap:5px}
+.menu-toggle .bar{display:block;width:20px;height:1.5px;background:var(--text);transition:transform .18s,opacity .18s}
+.menu-toggle[aria-expanded="true"] .bar:nth-child(1){transform:translateY(6.5px) rotate(45deg)}
 .menu-toggle[aria-expanded="true"] .bar:nth-child(2){opacity:0}
-.menu-toggle[aria-expanded="true"] .bar:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
-.search-box{display:flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0 4px 0 12px;height:38px}
-.search-box input{border:none;background:transparent;outline:none;font-size:.9rem;width:160px;color:var(--text)}
-.search-box button{border:none;background:var(--primary);color:#fff;border-radius:6px;height:30px;padding:0 12px;font-size:.85rem;cursor:pointer}
-.lang-switch{font-size:.85rem;font-weight:600;color:var(--text-light);background:var(--bg);border:1px solid var(--border);padding:6px 12px;border-radius:8px}
-.lang-switch:hover{color:var(--primary);border-color:var(--primary)}
+.menu-toggle[aria-expanded="true"] .bar:nth-child(3){transform:translateY(-6.5px) rotate(-45deg)}
+/* 搜索: 一条下划线, 不用药丸输入框 */
+.search-box{display:flex;align-items:center;border-bottom:1px solid var(--border);height:30px;transition:border-color .15s}
+.search-box:focus-within{border-color:var(--text)}
+.search-box input{border:none;background:transparent;outline:none;font-size:.88rem;width:148px;color:var(--text);font-family:inherit}
+.search-box button{border:none;background:none;color:var(--text-light);font-size:.82rem;cursor:pointer;padding:0 0 0 8px;font-family:inherit}
+.search-box button:hover{color:var(--primary)}
+.lang-switch{font-size:.84rem;color:var(--text-light);padding:2px 0;border-bottom:1px solid transparent}
+.lang-switch:hover{color:var(--primary);border-bottom-color:var(--primary);text-decoration:none}
 
-/* 分类条 */
+/* 分类条: 纯文本导航 */
 .cat-bar{background:#fff;border-bottom:1px solid var(--border)}
-.cat-bar-inner{max-width:1140px;margin:0 auto;padding:0 20px;display:flex;gap:6px;overflow-x:auto;white-space:nowrap;padding:10px 20px}
-.cat-bar a{font-size:.85rem;color:var(--text-light);padding:5px 14px;border-radius:20px;background:var(--bg);font-weight:500}
-.cat-bar a:hover{color:var(--primary);background:var(--primary-light)}
+.cat-bar-inner{max-width:1120px;margin:0 auto;display:flex;gap:22px;overflow-x:auto;white-space:nowrap;padding:9px 24px}
+.cat-bar-inner::-webkit-scrollbar{display:none}
+.cat-bar a{font-size:.85rem;color:var(--text-light)}
+.cat-bar a:hover{color:var(--primary);text-decoration:none}
 /* 主布局 */
-.layout{display:grid;grid-template-columns:1fr 300px;gap:28px;max-width:1140px;margin:0 auto;padding:28px 20px 40px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:48px;max-width:1120px;margin:0 auto;padding:36px 24px 64px}
 .layout>main,.layout>.sidebar{min-width:0}
-.layout.no-sidebar{grid-template-columns:1fr}
-@media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{display:none}}
+.layout.no-sidebar{grid-template-columns:minmax(0,1fr)}
 
-/* 文章卡片 */
-.post-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:22px;display:flex;transition:transform .15s,box-shadow .15s}
-.post-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
-.post-thumb{flex:0 0 220px;min-height:150px;background:linear-gradient(135deg,#e0e7ff,#f5f3ff);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.post-thumb img{width:100%;height:100%;object-fit:cover}
-.post-thumb .no-img{font-size:2.2rem;opacity:.35}
-.post-body{padding:20px 24px;flex:1}
-.post-meta{display:flex;align-items:center;gap:14px;font-size:.82rem;color:var(--text-light);margin-bottom:8px}
-.post-meta .cat{color:var(--primary);font-weight:600}
-.post-title{font-size:1.22rem;font-weight:700;line-height:1.45;margin-bottom:8px}
+/* 文章列表: 分隔线分栏, 不用卡片盒子 */
+.post-card{display:flex;gap:22px;padding:24px 0;border-bottom:1px solid var(--border-soft);align-items:flex-start}
+.post-card:first-of-type{padding-top:0}
+.post-thumb{flex:0 0 150px;display:block;overflow:hidden;background:var(--wash);aspect-ratio:4/3}
+.post-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.post-card.no-thumb{gap:0}
+.post-card.no-thumb .post-thumb{display:none}
+.post-body{flex:1;min-width:0}
+.post-meta{display:flex;align-items:center;gap:10px;font-size:.79rem;color:var(--text-light);margin-bottom:6px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.post-meta .cat{color:var(--primary)}
+.post-title{font-size:1.15rem;font-weight:600;line-height:1.5;margin-bottom:7px;letter-spacing:-.01em}
 .post-title a{color:var(--text)}
-.post-title a:hover{color:var(--primary)}
-.post-excerpt{color:var(--text-light);font-size:.93rem;line-height:1.7}
-@media(max-width:700px){.post-card{flex-direction:column}.post-thumb{flex:none;min-height:120px}}
-
-/* 分页 */
-.pagination{display:flex;justify-content:center;align-items:center;gap:5px;margin:30px 0;flex-wrap:wrap}
-.pagination a,.pagination .cur,.pagination .dots{min-width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:.9rem;font-weight:600;background:#fff;border:1px solid var(--border);color:var(--text)}
-.pagination a:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
-.pagination .cur{background:var(--primary);border-color:var(--primary);color:#fff}
-.pagination .dots{border:none;background:transparent;color:var(--text-light);min-width:24px}
-.pagination .disabled{opacity:.35;pointer-events:none;min-width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#fff;border:1px solid var(--border);color:var(--text-light)}
-.pagination .prev,.pagination .next,.pagination .first,.pagination .last{min-width:36px}
-.pagination .page-info{font-size:.82rem;color:var(--text-light);margin-left:6px;white-space:nowrap}
+.post-title a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
+.post-excerpt{color:var(--text-light);font-size:.93rem;line-height:1.72}
 @media(max-width:700px){
-  .pagination{gap:4px}
-  .pagination a,.pagination .cur,.pagination .dots,.pagination .disabled{min-width:32px;height:32px;font-size:.82rem}
+  .post-card{gap:14px;padding:20px 0}
+  .post-thumb{flex:0 0 96px}
+  .post-title{font-size:1.06rem}
+  .post-excerpt{font-size:.9rem}
+}
+
+/* 分页: 纯文字, 当前页加粗 */
+.pagination{display:flex;align-items:center;gap:2px;margin:34px 0 0;flex-wrap:wrap;font-size:.9rem}
+.pagination a,.pagination .cur,.pagination .dots,.pagination .disabled{min-width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;padding:0 7px;color:var(--text-light);font-variant-numeric:tabular-nums}
+.pagination a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:4px}
+.pagination .cur{color:var(--text);font-weight:700}
+.pagination .dots{color:var(--border);min-width:18px}
+.pagination .disabled{opacity:.35}
+.pagination .page-info{font-size:.8rem;color:var(--text-light);margin-left:auto;white-space:nowrap}
+@media(max-width:700px){
+  .pagination{gap:0}
   .pagination .first,.pagination .last{display:none}
   .pagination .page-info{display:none}
 }
 
-/* 侧边栏 */
-.sidebar{display:flex;flex-direction:column;gap:22px}
-.widget{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}
-.widget h3{font-size:1rem;font-weight:700;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--primary-light);display:flex;align-items:center;gap:8px}
-.widget h3::before{content:"";width:4px;height:16px;background:var(--primary);border-radius:2px;display:inline-block}
+/* 侧边栏: 无卡片框, 靠标题和细线分区 */
+.sidebar{display:flex;flex-direction:column;gap:34px}
+.widget h3{font-size:.78rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text-light);margin-bottom:13px;padding-bottom:8px;border-bottom:1px solid var(--border)}
 .widget ul{list-style:none}
-.widget li{margin-bottom:9px;font-size:.9rem;border-bottom:1px dashed var(--border);padding-bottom:9px}
-.widget li:last-child{border-bottom:none;padding-bottom:0}
-.widget li a{color:var(--text);display:block}
+.widget li{margin-bottom:10px;font-size:.91rem;line-height:1.6}
+.widget li:last-child{margin-bottom:0}
+.widget li a{color:var(--text)}
 .widget li a:hover{color:var(--primary)}
-.author-card{text-align:center}
-.author-avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:800;margin:0 auto 12px}
-.author-card .author-name{font-size:1.05rem;font-weight:700;margin-bottom:6px}
-.author-card p{font-size:.85rem;color:var(--text-light)}
-.contact-list li{display:flex;align-items:center;gap:8px;font-size:.88rem}
+.author-card .author-name{font-size:.98rem;font-weight:700;margin-bottom:8px}
+.author-card p{font-size:.89rem;color:var(--text-light);line-height:1.72}
+.contact-list li{font-size:.89rem;color:var(--text-light)}
+/* 断点必须写在 .sidebar 规则之后: 同优先级下后定义的 display 会赢 */
+@media(max-width:900px){.layout{grid-template-columns:minmax(0,1fr);gap:0}.sidebar{display:none}}
 
-/* 文章页 */
-.article{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:36px 40px}
-.article-header{margin-bottom:26px;padding-bottom:22px;border-bottom:1px solid var(--border)}
-.article .article-hero{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:18px 0 6px;border:1px solid var(--border)}
-.article h1{font-size:1.75rem;font-weight:800;line-height:1.4;margin-bottom:14px}
-.article-meta{display:flex;gap:16px;font-size:.86rem;color:var(--text-light);flex-wrap:wrap}
-.article-meta .author-link{color:inherit;text-decoration:none}
-.article-meta .author-link:hover{text-decoration:underline}
-.breadcrumbs{font-size:.84rem;color:var(--text-light);margin:0 0 14px;line-height:1.5}
-.breadcrumbs a{text-decoration:underline;text-underline-offset:2px}
-.article .content{font-size:1.02rem}
-.article .content h2{font-size:1.35rem;font-weight:700;margin:30px 0 14px;padding-left:12px;border-left:4px solid var(--primary)}
-.article .content h3{font-size:1.15rem;font-weight:700;margin:24px 0 12px}
-.article .content p{margin:0 0 16px}
-.article .content ul,.article .content ol{margin:0 0 16px 22px}
-.article .content li{margin-bottom:6px}
-.article .content img{border-radius:8px;margin:10px 0}
-.article .content table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.92rem}
-.article .content th{background:var(--primary-light);font-weight:700}
-.article .content td,.article .content th{border:1px solid var(--border);padding:10px 12px;text-align:left}
-.article .content blockquote{border-left:4px solid var(--accent);background:#fffbeb;padding:14px 18px;margin:16px 0;border-radius:0 8px 8px 0;color:#92400e}
+/* 文章页: 不套外框, 正文直接排在版面上 */
+.article{padding:0}
+.article-header{margin-bottom:22px}
+.article .article-hero{display:block;width:100%;max-height:440px;object-fit:cover;margin:22px 0 4px}
+.article h1{font-size:1.88rem;font-weight:700;line-height:1.42;margin-bottom:14px;letter-spacing:-.02em}
+.article-meta{display:flex;gap:10px;font-size:.85rem;color:var(--text-light);flex-wrap:wrap;align-items:center;font-variant-numeric:tabular-nums}
+.article-meta .sep{color:var(--border)}
+.article-meta .author-link{color:inherit;text-decoration:none;border-bottom:1px solid var(--border)}
+.article-meta .author-link:hover{color:var(--primary);border-color:var(--primary);text-decoration:none}
+.breadcrumbs{font-size:.81rem;color:var(--text-light);margin:0 0 16px;line-height:1.5}
+.breadcrumbs a{color:var(--text-light);border-bottom:1px solid var(--border)}
+.breadcrumbs a:hover{color:var(--primary);border-color:var(--primary);text-decoration:none}
+.article .content{font-size:1.04rem}
+.article .content h2{font-size:1.3rem;font-weight:700;margin:38px 0 14px;letter-spacing:-.01em}
+.article .content h3{font-size:1.13rem;font-weight:700;margin:28px 0 10px}
+.article .content p{margin:0 0 18px}
+.article .content ul,.article .content ol{margin:0 0 18px 22px}
+.article .content li{margin-bottom:7px}
+.article .content img{margin:18px 0}
+.article .content table{width:100%;border-collapse:collapse;margin:22px 0;font-size:.92rem;border-top:1px solid var(--border)}
+.article .content th{font-weight:600;text-align:left;background:var(--wash)}
+.article .content td,.article .content th{border:none;border-bottom:1px solid var(--border-soft);padding:10px 12px}
+.article .content blockquote{border-left:2px solid var(--border);padding:0 0 0 18px;margin:24px 0;color:var(--text-light)}
 .article .content a{text-decoration:underline;text-underline-offset:2px}
 .article,.article .content,.article .content p,.article .content li,.article .content a{overflow-wrap:anywhere;word-break:break-word;min-width:0}
 .article .content table{display:block;max-width:100%;overflow-x:auto}
-.article .content code{background:var(--bg);padding:2px 6px;border-radius:4px;font-size:.9em}
-pre{background:#f6f8fa;color:#212121;border:1px solid #e1e4e8;padding:18px;border-radius:8px;overflow-x:auto;margin:16px 0;max-width:100%;white-space:pre;word-wrap:normal;tab-size:4;font-size:.92rem;font-family:"JetBrains Mono","Fira Code","Cascadia Code","SF Mono",Menlo,Consolas,"Liberation Mono","Courier New",monospace;line-height:1.6}
-pre code{background:none;color:inherit;padding:0;white-space:pre;font-size:.92rem;font-family:inherit;line-height:1.6}
-.article .content code{background:var(--bg);padding:2px 6px;border-radius:4px;font-size:.9em;font-family:"JetBrains Mono","Fira Code","Cascadia Code","SF Mono",Menlo,Consolas,"Liberation Mono","Courier New",monospace}
-.lang-toggle{background:var(--primary-light);color:var(--primary);padding:8px 16px;border-radius:8px;font-weight:600}
+.article .content code{background:var(--wash);padding:1px 5px;font-size:.88em;font-family:var(--mono)}
+pre{background:var(--wash);color:var(--text);border:none;border-left:2px solid var(--border);padding:16px 18px;overflow-x:auto;margin:22px 0;max-width:100%;white-space:pre;word-wrap:normal;tab-size:2;font-size:.88rem;font-family:var(--mono);line-height:1.65}
+pre code{background:none;color:inherit;padding:0;white-space:pre;font-size:.88rem;font-family:inherit;line-height:1.65}
+.article-footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--border-soft)}
+.lang-toggle{font-size:.89rem;color:var(--text-light);border-bottom:1px solid var(--border);padding-bottom:1px}
+.lang-toggle:hover{color:var(--primary);border-color:var(--primary);text-decoration:none}
 
 /* 页面/分类/搜索 */
-.page-title{font-size:1.6rem;font-weight:800;margin:24px 0 20px;padding-bottom:12px;border-bottom:2px solid var(--primary-light)}
-.post-list{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:8px 24px}
+.page-title{font-size:1.72rem;font-weight:700;margin:0 0 20px;letter-spacing:-.015em}
+.post-list{list-style:none;padding:0}
+.post-list li{padding:14px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+.post-list li:last-child{border-bottom:none}
+.post-list a{color:var(--text);font-weight:500;font-size:.97rem}
+.post-list a:hover{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
+.post-list time{color:var(--text-light);font-size:.8rem;white-space:nowrap;font-variant-numeric:tabular-nums}
 .home-hero{margin:0;padding:0}
 .home-hero h1{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .home-hero p{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.post-list li{padding:14px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:14px}
-.post-list li:last-child{border-bottom:none}
-.post-list a{color:var(--text);font-weight:600;font-size:.98rem}
-.post-list a:hover{color:var(--primary)}
-.post-list time{color:var(--text-light);font-size:.82rem;white-space:nowrap}
-.page-content{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:36px 40px;font-size:1.02rem}
-.page-content h2{font-size:1.3rem;margin:22px 0 12px}
-.page-content p{margin-bottom:14px}
-.page-content ul{margin:0 0 14px 20px}
+.page-content{padding:0;font-size:1.04rem}
+.page-content h2{font-size:1.28rem;font-weight:700;margin:34px 0 12px}
+.page-content h3{font-size:1.1rem;font-weight:700;margin:26px 0 10px}
+.page-content p{margin-bottom:18px}
+.page-content ul,.page-content ol{margin:0 0 18px 22px}
+.page-content li{margin-bottom:7px}
+.empty-note{color:var(--text-light);font-size:.95rem;padding:26px 0}
+.page-lead{font-size:.87rem;color:var(--text-light);margin:-10px 0 20px}
 
-/* 页脚 */
-.site-footer{background:#0f172a;color:#94a3b8;padding:40px 0 28px;margin-top:40px}
-.footer-inner{max-width:1140px;margin:0 auto;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:30px}
-.footer-col h4{color:#f1f5f9;font-size:1rem;margin-bottom:14px;font-weight:700}
-.footer-col a{display:block;color:#94a3b8;font-size:.88rem;margin-bottom:8px}
-.footer-col a:hover{color:#fff}
-.footer-bottom{max-width:1140px;margin:24px auto 0;padding:18px 20px 0;border-top:1px solid #1e293b;font-size:.82rem;text-align:center;color:#94a3b8}
+/* 页脚: 浅色收口, 不用深色色块 */
+.site-footer{background:var(--wash);border-top:1px solid var(--border);color:var(--text-light);padding:42px 0 30px;margin-top:72px}
+.footer-inner{max-width:1120px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:30px}
+.footer-col h4{color:var(--text);font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;margin-bottom:13px;font-weight:700}
+.footer-col a{display:block;color:var(--text-light);font-size:.89rem;margin-bottom:7px}
+.footer-col a:hover{color:var(--primary);text-decoration:none}
+.footer-bottom{max-width:1120px;margin:30px auto 0;padding:16px 24px 0;border-top:1px solid var(--border);font-size:.8rem;color:var(--text-light)}
 
 /* 404 */
-.notfound{text-align:center;padding:80px 20px}
-.notfound .code{font-size:5rem;font-weight:900;background:linear-gradient(135deg,#2563eb,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.notfound h1{font-size:1.5rem;margin:10px 0 16px}
+.notfound{padding:76px 0;max-width:560px}
+.notfound .code{font-size:.82rem;font-weight:600;letter-spacing:.14em;color:var(--text-light);font-variant-numeric:tabular-nums}
+.notfound h1{font-size:1.5rem;font-weight:700;margin:10px 0 12px;letter-spacing:-.01em}
+.notfound p{color:var(--text-light);font-size:.95rem;margin-bottom:22px}
+.notfound .links{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:.93rem}
 
 @media(max-width:700px){
   /* 主菜单: 桌面导航隐藏, 汉堡按钮显示, 点击展开下拉面板 */
-  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;gap:0;padding:8px 0;border-bottom:1px solid var(--border);box-shadow:0 8px 20px rgba(0,0,0,.08);z-index:99}
+  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;flex-direction:column;align-items:stretch;gap:0;padding:0;border-bottom:1px solid var(--border);z-index:99}
   .main-nav.open{display:flex}
-  .main-nav a{padding:14px 20px;border-bottom:1px solid var(--border);font-size:1rem}
+  .main-nav a{padding:13px 20px;border-bottom:1px solid var(--border-soft);font-size:.96rem}
   .main-nav a:last-child{border-bottom:none}
-  .main-nav a:hover{background:var(--bg);color:var(--primary);border-bottom-color:var(--border)}
+  .main-nav a:hover{color:var(--primary);text-decoration:none;background:var(--wash)}
   .menu-toggle{display:flex}
-  .header-inner{position:relative;height:auto;flex-wrap:wrap;padding:10px 16px;gap:8px 12px}
-  .logo-img{height:28px;width:auto}
-  .logo{font-size:1.1rem;gap:6px}
-  .nav-right{width:100%;order:3;display:flex;gap:8px}
+  .header-inner{position:relative;height:auto;flex-wrap:wrap;padding:9px 16px;gap:8px 12px}
+  .logo-img{height:26px;width:auto}
+  .logo{font-size:.98rem;gap:8px}
+  .nav-right{width:100%;order:3;display:flex;gap:14px}
   .search-box{flex:1;min-width:0}
   .search-box input{width:auto;flex:1;min-width:0}
-  .search-box button{padding:0 10px;white-space:nowrap}
-  .lang-switch{padding:6px 10px}
-  /* 移动端分类栏: 全部 8 个分类显示, 自动换行成两行胶囊 */
-  .cat-bar-inner{flex-wrap:wrap;gap:6px;padding:8px 12px;overflow-x:visible;white-space:normal}
-  .cat-bar a{padding:5px 12px;font-size:.8rem}
-  .article,.page-content{padding:22px 18px}
-  .article h1{font-size:1.35rem}
-  .post-title{font-size:1.08rem}
+  .search-box button{padding:0 0 0 8px;white-space:nowrap}
+  .cat-bar-inner{gap:16px;padding:8px 16px}
+  .cat-bar a{font-size:.82rem}
+  .layout{padding:24px 16px 48px}
+  .article h1{font-size:1.42rem}
+  .page-title{font-size:1.45rem}
+  .site-footer{margin-top:48px;padding:34px 0 24px}
+  .footer-inner{padding:0 16px}
+  .footer-bottom{padding:14px 16px 0}
 }
 `
 
@@ -418,11 +438,18 @@ function safeEqual(a, b) {
   return out === 0
 }
 // 日期格式化: 兼容 ISO (2026-08-04T02:07:35) 和可读格式 (November 21, 2025)
+// 统一输出 YYYY-MM-DD: 列表里日期是等宽小字, 混排两种格式会让行看起来歪。
 function fmtDate(d) {
   if (!d) return ''
   const s = String(d).trim()
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10)
-  // 可读格式: 原样返回
+  const t = Date.parse(s)
+  if (!Number.isNaN(t)) {
+    const dt = new Date(t)
+    const p = (n) => String(n).padStart(2, '0')
+    // 用本地日期: "November 21, 2025" 按本地零点解析, 走 UTC 会回退一天
+    return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}`
+  }
   return s
 }
 // ===== 统一分页导航生成器 =====
@@ -465,11 +492,19 @@ function parsePage(n) {
 // 之前越界分页/不存在的分类走 c.notFound()，返回 Hono 默认纯文本 —— 与站点 404 两套样式，
 // 且没有 robots 指令，会被搜索引擎当成可索引的薄页面。
 function notFoundHtml(c, lang) {
+  const base = baseOf(lang)
   return c.html(layout(lang, '404 Not Found - VirtualCardx', 'Page not found', `
     <div class="notfound">
       <div class="code">404</div>
-      <h1>${lang==='en'?'Page not found':'页面不存在'}</h1>
-      <p><a href="${baseOf(lang)}">${lang==='en'?'← Back to home':'← 返回首页'}</a></p>
+      <h1>${lang==='en'?"This page isn't here":'这个页面不存在'}</h1>
+      <p>${lang==='en'
+        ? 'The link is probably out of date, or the piece was moved somewhere else.'
+        : '链接大概是过期了，或者这篇内容被挪到别处了。'}</p>
+      <div class="links">
+        <a href="${base}">${lang==='en'?'Home':'回到首页'}</a>
+        <a href="${base}virtual-credit-card/">${lang==='en'?'Virtual card reviews':'虚拟卡评测'}</a>
+        <a href="${base}about/">${lang==='en'?'About':'关于本站'}</a>
+      </div>
     </div>`, { noSidebar:true, noindex:true, omitCanonical:true }), 404)
 }
 
@@ -541,18 +576,20 @@ function layout(lang, title, desc, body, opts={}) {
   const sidebar = opts.noSidebar ? '' : `
   <aside class="sidebar">
     <div class="widget author-card">
-      <div class="author-avatar">K</div>
+      <h3>${lang==='en'?'About':'关于作者'}</h3>
       <div class="author-name">Kenneth Lau</div>
-      <p>${lang==='en'?'Independent virtual card reviewer — first-hand testing, tiered source verification.':'跨境支付独立评测人：官方实测优先，分级信源核验。'}</p>
+      <p>${lang==='en'
+        ? 'I write about cross-border payments, virtual cards and getting paid overseas. Cards get opened and actually used before anything is published; sources are graded by how much they can be trusted.'
+        : '写跨境支付、虚拟卡和出海收款。开卡、充值、扣款都自己跑一遍才写，信源按可靠程度分级。'}</p>
     </div>
     <div class="widget">
-      <h3>${lang==='en'?'Recent Posts':'最新文章'}</h3>
+      <h3>${lang==='en'?'Recent posts':'最近更新'}</h3>
       ${opts.recentPosts||''}
     </div>
     <div class="widget">
-      <h3>${lang==='en'?'Contact':'联系方式'}</h3>
+      <h3>${lang==='en'?'Get in touch':'联系'}</h3>
       <ul class="contact-list">
-        <li>📮 TG：${lang==='en'?'VirtualCardx':'@VirtualCardx'}</li>
+        <li>Telegram&nbsp;&nbsp;@VirtualCardx</li>
       </ul>
     </div>
   </aside>`
@@ -565,9 +602,6 @@ function layout(lang, title, desc, body, opts={}) {
 <meta name="description" content="${esc(desc)}">
 ${opts.noindex ? '<meta name="robots" content="noindex,follow">' : ''}
 <link rel="icon" type="image/png" href="/media/1556-cropped-logo.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 ${seoHead}
 <meta property="og:type" content="${opts.ogType||'website'}">
 <meta property="og:site_name" content="VirtualCardx">
@@ -613,41 +647,36 @@ ${opts.extraHead||''}
       <h4>VirtualCardx</h4>
       <a href="${base}">${homeLabel}</a>
       <a href="${base}about/">${lang==='en'?'About':'关于本站'}</a>
-      <a href="${base}contact/">${lang==='en'?'Contact':'联系站长'}</a>
+      <a href="${base}contact/">${lang==='en'?'Contact':'联系'}</a>
     </div>
     <div class="footer-col">
       <h4>${lang==='en'?'Categories':'分类'}</h4>
       ${catLinks}
     </div>
     <div class="footer-col">
-      <h4>${lang==='en'?'Legal':'法律'}</h4>
-      <a href="${base}terms/">${lang==='en'?'Terms of Use':'使用条款'}</a>
-      <a href="${base}privacy-policy/">${lang==='en'?'Privacy Policy':'隐私政策'}</a>
+      <h4>${lang==='en'?'Legal':'条款'}</h4>
+      <a href="${base}terms/">${lang==='en'?'Terms of use':'使用条款'}</a>
+      <a href="${base}privacy-policy/">${lang==='en'?'Privacy policy':'隐私政策'}</a>
     </div>
   </div>
-  <div class="footer-bottom">© ${new Date().getFullYear()} VirtualCardx · ${lang==='en'?'Virtual credit card reviews':'虚拟信用卡评测'} · All rights reserved</div>
+  <div class="footer-bottom">© ${new Date().getFullYear()} VirtualCardx</div>
 </footer>
 <script>
 (function(){
   var btn=document.querySelector('.menu-toggle'), nav=document.getElementById('mainNav');
   if(!btn||!nav) return;
+  function close(){ nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); }
   btn.addEventListener('click', function(e){
     e.stopPropagation();
     var open=nav.classList.toggle('open');
     btn.setAttribute('aria-expanded', open?'true':'false');
   });
-  // 点击菜单项后收起
-  nav.querySelectorAll('a').forEach(function(a){
-    a.addEventListener('click', function(){ nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); });
-  });
-  // 点击页面其他区域关闭
+  nav.addEventListener('click', function(e){ if(e.target.tagName==='A') close(); });
   document.addEventListener('click', function(e){
     if(!nav.classList.contains('open')) return;
-    if(!nav.contains(e.target) && !btn.contains(e.target)){
-      nav.classList.remove('open'); btn.setAttribute('aria-expanded','false');
-    }
+    if(!nav.contains(e.target) && !btn.contains(e.target)) close();
   });
-  // 菜单展开时锁定滚动 (可选)
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
 })();
 </script>
 </body>
@@ -792,7 +821,7 @@ async function renderPostCards(c, lang, posts, opts = {}) {
     const pair = (lang === 'en' && p.translation_id) ? pairByTid.get(p.translation_id) : null
     const fm = fmByPost.get(p)
     const m = fm ? mediaById.get(fm) : null
-    let imgHtml = '<div class="no-img">💳</div>'
+    let imgHtml = ''
     if (m) {
       const dims = m.width && m.height ? ` width="${m.width}" height="${m.height}"` : ''
       const isFirst = opts.lcpFirst && cards.length === 0
@@ -800,13 +829,12 @@ async function renderPostCards(c, lang, posts, opts = {}) {
         ? `<img src="/${m.path}" alt="${esc(m.alt || p.title)}"${dims} fetchpriority="high" decoding="async">`
         : `<img src="/${m.path}" alt="${esc(m.alt || p.title)}"${dims} loading="lazy" decoding="async">`
     }
-    const excerpt = excerptText(p.excerpt) || (pair ? excerptText(pair.excerpt) : '')
+    const excerpt = excerptText(p.excerpt, 156) || (pair ? excerptText(pair.excerpt, 156) : '')
     const metaBits = []
-    if (opts.showCat) metaBits.push(`<span class="cat">${lang==='en'?'Review':'评测'}</span>`)
     metaBits.push(`<span>${esc(fmtDate(p.date))}</span>`)
-    if (opts.showZhTag && p.isZhFallback) metaBits.push(`<span class="cat">${lang==='en'?'ZH':'中'}</span>`)
-    cards.push(`<article class="post-card">
-      <a class="post-thumb" href="${base}${p.path}/">${imgHtml}</a>
+    if (opts.showZhTag && p.isZhFallback) metaBits.push(`<span class="cat">${lang==='en'?'ZH':'中文'}</span>`)
+    cards.push(`<article class="post-card${imgHtml?'':' no-thumb'}">
+      ${imgHtml?`<a class="post-thumb" href="${base}${p.path}/" tabindex="-1" aria-hidden="true">${imgHtml}</a>`:''}
       <div class="post-body">
         <div class="post-meta">${metaBits.join('')}</div>
         <h2 class="post-title"><a href="${base}${p.path}/">${esc(p.title)}</a></h2>
@@ -863,8 +891,17 @@ async function handleSearch(c, lang, q) {
     'SELECT slug, title, excerpt, path, date, featured_media, translation_id FROM posts WHERE lang = ? AND status="publish" AND (title LIKE ? OR content LIKE ?) ORDER BY sticky DESC, date DESC LIMIT 20',
     [lang, `%${q}%`, `%${q}%`])
   const cards = await renderPostCards(c, lang, results)
-  const listHtml = cards || `<p style="padding:20px;color:var(--text-light)">${lang==='en'?'No results found':'没有找到相关结果'}</p>`
-  const body = `<h1 class="page-title">${lang==='en'?'Search':'搜索'}: ${esc(q)}</h1>${listHtml}`
+  const count = results.length
+  const listHtml = cards || `<p class="empty-note">${lang==='en'
+    ? `Nothing matched “${esc(q)}”. Try a card name, or a shorter phrase.`
+    : `没有匹配 “${esc(q)}” 的内容。可以试试平台名，或者把关键词缩短一点。`}</p>`
+  const lead = cards
+    ? `<p class="page-lead">${lang==='en'
+        ? `${count} ${count===1?'match':'matches'} in titles and body text.`
+        : `标题和正文里匹配到 ${count} 篇。`}</p>`
+    : ''
+  const heading = lang==='en' ? `Results for “${esc(q)}”` : `“${esc(q)}” 的搜索结果`
+  const body = `<h1 class="page-title">${heading}</h1>${lead}${listHtml}`
   const searchDesc = lang==='en'
     ? `Search results for “${q}” on VirtualCardx. Browse related virtual card reviews, payment guides, and practical tutorials.`
     : `VirtualCardx 站内“${q}”搜索结果，查找相关虚拟卡评测、跨境支付指南与实用教程。`
@@ -934,7 +971,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   const catUrl = `${base}${catPath}/`
   // 渲染卡片式列表 (特色图/摘要/配对回退都在 renderPostCards 内批量处理)
   const listHtml = (await renderPostCards(c, lang, pageItems, { showZhTag: true })) ||
-    '<p style="padding:20px;color:var(--text-light)">No posts</p>'
+    `<p class="empty-note">${lang==='en'?'Nothing filed under this category yet.':`这个分类下还没有文章。`}</p>`
   // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? catUrl : `${catUrl}page/${p}/`
   const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
@@ -962,8 +999,8 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
     : `${name} - VirtualCardx`
   const pageDesc = page>1
     ? (lang==='en'
-      ? `Browse page ${page} of ${name} on VirtualCardx, with practical reviews, fee comparisons, setup guides, and risk notes.`
-      : `浏览 VirtualCardx ${name}第 ${page} 页，查看平台实测、费率对比、开通教程、使用限制与风险提示。`)
+      ? `Page ${page} of ${name}.`
+      : `${name}第 ${page} 页。`)
     : (categoryDescFor(lang, childSlug || parentSlug) || `${name} category on VirtualCardx`)
   return layout(lang, pageTitle, pageDesc, body, { noSidebar:true, path: canonicalPath, jsonld: categoryJsonld })
 }
@@ -996,7 +1033,7 @@ async function renderHomePage(c, lang, page) {
   const totalPages = Math.max(1, Math.ceil(total/perPage))
   if (page > totalPages) return null
   const pageItems = results.slice(offset, offset+perPage)
-  const cards = await renderPostCards(c, lang, pageItems, { showCat: true, lcpFirst: page === 1 })
+  const cards = await renderPostCards(c, lang, pageItems, { lcpFirst: page === 1 })
   // 分页导航 (统一组件)
   const urlFor = (p) => p === 1 ? base : `${base}page/${p}/`
   const pagination = renderPagination(page, totalPages, urlFor, { showInfo: true })
@@ -1009,8 +1046,8 @@ async function renderHomePage(c, lang, page) {
         : '虚拟信用卡评测与推荐 — 60+ 平台实测')
   const heroDescription = page === 1
     ? `<p>${lang==='en'
-        ? 'Independent, hands-on reviews of virtual credit cards for cross-border payments: fees, KYC, funding methods, and real-world usage.'
-        : '跨境支付虚拟信用卡实测评测：费率、KYC、开卡与充值方式、风控与真实使用体验。'}</p>`
+        ? 'Notes on what each virtual card is actually like to use: how the fees work out, where KYC gets stuck, how long funding takes, and when accounts get flagged.'
+        : '这里记的是各家虚拟卡实际用起来是什么样：费率怎么算、KYC 卡在哪一步、充值多久到账、什么情况会被风控。'}</p>`
     : ''
   const heroSection = `<section class="home-hero"><h1>${heroTitle}</h1>${heroDescription}</section>`
   const siteUrl = SITE + base
@@ -1032,8 +1069,8 @@ async function renderHomePage(c, lang, page) {
     ? (lang==='en' ? `Latest Articles — Page ${page} - VirtualCardx` : `最新文章第 ${page} 页 - VirtualCardx`)
     : (lang==='en' ? 'VirtualCardx | Virtual Credit Card Reviews & Recommendations' : '虚拟信用卡平台推荐与评测 | VirtualCardx 60+平台实测')
   const pageDesc = page>1
-    ? (lang==='en' ? `Browse the latest VirtualCardx reviews and guides on page ${page}.` : `VirtualCardx 最新评测和教程第 ${page} 页。`)
-    : (lang==='en' ? 'Independent virtual credit card reviews, fees comparison, KYC and recommendations for cross-border payments.' : '虚拟信用卡实测评测与推荐：60+平台费率、KYC、返现、安全性全面对比，跨境支付与广告投放场景实测。')
+    ? (lang==='en' ? `Page ${page} of the archive.` : `文章归档第 ${page} 页。`)
+    : (lang==='en' ? 'Hands-on notes on 60+ virtual cards: fees, KYC, funding, risk controls, and where each one is actually worth using.' : '60+ 虚拟信用卡的实测记录：费率怎么算、KYC 卡在哪、充值多久到账、什么情况会被风控。')
   return layout(lang,
     pageTitle,
     pageDesc,
@@ -1129,12 +1166,12 @@ app.get('/llms.txt', async (c) => {
   const lines = []
   lines.push('# VirtualCardX')
   lines.push('')
-  lines.push('> 虚拟信用卡评测与跨境支付指南:实测各平台(开卡/费率/充值/风控),面向海外订阅、广告投放与收款的用户。英文版 /en/。')
+  lines.push('> 虚拟信用卡、跨境收款和稳定币充值的实测记录。英文版在 /en/。')
   lines.push('')
   lines.push('## 分类')
   lines.push('')
-  lines.push('- [虚拟卡评测](https://virtualcardx.com/virtual-credit-card/): 各平台实测评分、费率与风控')
-  lines.push('- [跨境支付与收款](https://virtualcardx.com/cross-border-collections/): 收款与结汇方案')
+  lines.push('- [虚拟卡评测](https://virtualcardx.com/virtual-credit-card/): 开卡流程、费率、充值方式、封卡风险')
+  lines.push('- [跨境支付与收款](https://virtualcardx.com/cross-border-collections/): 收款平台开户、费率、提现时效')
   lines.push('- [加密货币](https://virtualcardx.com/cryptocurrency/): U 卡、稳定币充值、链上手续费')
   lines.push('')
   lines.push('## 最新文章(中文)')
@@ -1695,8 +1732,9 @@ app.get('*', async (c) => {
             <div class="article-header">
               <h1>${esc(zp.title)}</h1>
               <div class="article-meta">
-                <span>🕐 ${esc(fmtDate(zp.date))}</span>
-                <span>✍️ Moyi Foreign Trade</span>
+                <span>${esc(fmtDate(zp.date))}</span>
+                <span class="sep">·</span>
+                <span>Kenneth Lau</span>
               </div>
             </div>
             <div class="content">${content}</div>
@@ -1752,14 +1790,15 @@ app.get('*', async (c) => {
       <div class="article-header">
         <h1>${esc(p.title)}</h1>
         <div class="article-meta">
-          <span>🕐 ${esc(fmtDate(p.date))}</span>
-          <a class="author-link" href="${base}about/">✍️ Kenneth Lau</a>
+          <span>${esc(fmtDate(p.date))}</span>
+          <span class="sep">·</span>
+          <a class="author-link" href="${base}about/">Kenneth Lau</a>
         </div>
       </div>
       ${heroHtml}
       <div class="content">${content}</div>
       <div class="article-footer">
-        <a class="lang-toggle" href="${altHref}">${altLang==='en'?'🌐 Read in English':'🌐 阅读中文版'}</a>
+        <a class="lang-toggle" href="${altHref}">${altLang==='en'?'Read in English':'阅读中文版'}</a>
       </div>
     </article>`
     return c.html(layout(lang, `${p.title} - VirtualCardx`,
@@ -1819,8 +1858,11 @@ app.get('*', async (c) => {
       return c.html(layout(errLang, '500 Internal Server Error - VirtualCardx', 'Service temporarily unavailable', `
     <div class="notfound">
       <div class="code">500</div>
-      <h1>${errLang==='en'?'Something went wrong':'页面暂时无法加载'}</h1>
-      <p><a href="${baseOf(errLang)}">${errLang==='en'?'← Back to home':'← 返回首页'}</a></p>
+      <h1>${errLang==='en'?'Something broke on this end':'这边出了点问题'}</h1>
+      <p>${errLang==='en'
+        ? 'The page did not load. Refreshing in a moment usually clears it.'
+        : '页面没有加载出来。过一会儿刷新一下，一般就正常了。'}</p>
+      <div class="links"><a href="${baseOf(errLang)}">${errLang==='en'?'Home':'回到首页'}</a></div>
     </div>`, { noSidebar:true, noindex:true, omitCanonical:true }), 500)
     } catch {
       return c.text('Internal Server Error', 500)

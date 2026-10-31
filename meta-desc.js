@@ -1,40 +1,43 @@
 // 静态页与分类页 meta description (SEO 2026-08-24: 原 4-14 字符过短)
 // pages 表无 description 列, 分类表无文案 — 统一在渲染层注入
+//
+// 文案原则: 写具体做过的事, 不写"专注""全面""一站式""帮你少踩坑"这类空话。
+// meta description 仍是给搜索结果的摘要, 保留关键词, 但句子要是人说的话。
 const PAGE_DESC = {
   zh: {
-    about: 'VirtualCardx 专注虚拟信用卡实测与跨境支付：逐平台实测开卡、充值、费率与风控，分享外贸收款、独立站支付与降本经验。',
-    contact: '联系 VirtualCardx：商务合作、投稿、纠错与平台评测请求均可通过 Telegram 联系站长，工作日通常 24 小时内回复。',
-    'privacy-policy': 'VirtualCardx 隐私政策：说明本站收集的信息范围、Cookie 与分析工具使用、第三方服务数据披露及用户权利。',
-    terms: 'VirtualCardx 使用条款：站内虚拟卡平台信息仅供研究与参考，不构成金融或投资建议，使用服务前请核实官方条款。',
+    about: '写了几年虚拟信用卡和跨境支付。开卡、充值、扣费、封卡都遇到过，这里记的是过程本身，不是推荐榜。',
+    contact: '想聊合作、投稿、纠错，或者让我测某个平台，都可以在 Telegram 找我。工作日一般当天回。',
+    'privacy-policy': '本站收集什么、Cookie 怎么用、分析工具和第三方服务会看到哪些数据，以及你可以怎么处理。',
+    terms: '站内写的平台信息都是自己研究时留下的记录，不构成金融或投资建议。用之前请以官方条款为准。',
   },
   en: {
-    about: 'VirtualCardx publishes hands-on virtual credit card reviews and cross-border payment guides: onboarding tests, fees, limits, and risk notes.',
-    contact: 'Contact VirtualCardx for business cooperation, corrections, or platform review requests via Telegram. Replies typically within 24 hours on weekdays.',
-    'privacy-policy': 'VirtualCardx privacy policy: what data this site collects, how cookies and analytics are used, third-party disclosures, and your choices.',
-    terms: 'VirtualCardx terms of use: platform information is for research only and is not financial advice. Verify official terms before using any service.',
+    about: 'Notes from a few years of using virtual cards and cross-border payment tools. What onboarding, funding and getting flagged actually look like.',
+    contact: 'For corrections, review requests or anything else, reach me on Telegram. I usually reply the same day on weekdays.',
+    'privacy-policy': 'What this site collects, how cookies and analytics are used, which third parties see data, and what you can do about it.',
+    terms: "Everything here is research notes, not financial advice. Check the provider's own terms before you use anything.",
   },
 }
 // 分类页: slug -> 描述 (中英)
 const CATEGORY_DESC = {
   zh: {
-    'virtual-credit-card': '虚拟信用卡平台实测汇总：开卡流程、充值方式、月费与交易费率、KYC 要求和封卡风险，持续更新真实使用体验。',
-    'technology-share': '技术教程合集：Linux 服务器运维、SSL 证书、WordPress 与 API 自动化配置的实操步骤与踩坑记录。',
-    cryptocurrency: '加密货币栏目：稳定币充值虚拟卡、链上手续费对比、交易所提现与 U 卡选择的实操指南。',
-    'cross-border-collections': '跨境支付收款平台实测：开户流程、费率、提现时效与风控案例，覆盖主流收款工具的真实使用体验。',
-    'social-media': '社媒运营实战：Facebook、LinkedIn、WhatsApp 等平台的内容策略与客户开发方法，附外贸获客实操案例。',
-    'artificial-intelligence': 'AI 工具评测与教程：编程助手、API 接入、订阅支付方案对比，帮你选对工具少踩坑。',
-    seo: 'SEO 与流量实战：搜索引擎优化策略、AI Overview 应对、GSC 数据分析与外链建设方法。',
-    'resource-share': '免费资源分享：开发者工具、SaaS 免费额度与低成本 VPS 优惠汇总，长期更新。',
+    'virtual-credit-card': '各家虚拟卡的开卡流程、充值方式、月费与交易费率、KYC 要求，以及什么情况下会被封号。',
+    'technology-share': '服务器、证书、WordPress 和接口配置这类活，实际做一遍的步骤和卡住的地方。',
+    cryptocurrency: '用稳定币给虚拟卡充值、链上手续费、交易所提现到账要多久，以及 U 卡怎么挑。',
+    'cross-border-collections': '收款平台的开户流程、费率结构、提现时效，以及实际碰到的风控案例。',
+    'social-media': '在 Facebook、LinkedIn、WhatsApp 上找客户时，内容怎么发、话怎么开。',
+    'artificial-intelligence': '编程助手、接口接入、订阅怎么付，实际用下来值得留下的那几个。',
+    seo: '搜索排名、收录、外链这些东西，做过和没做过的地方差在哪。',
+    'resource-share': '开发工具、SaaS 免费额度、便宜 VPS，自己用着顺手才放上来。',
   },
   en: {
-    'virtual-credit-card': 'Hands-on virtual credit card platform reviews: onboarding, top-up methods, monthly and transaction fees, KYC requirements, and ban risks.',
-    'technology-share': 'Tech tutorials: Linux server operations, SSL certificates, WordPress, and API automation with step-by-step guides and pitfalls.',
-    cryptocurrency: 'Cryptocurrency guides: topping up virtual cards with stablecoins, on-chain fee comparisons, exchange withdrawals, and crypto card choices.',
-    'cross-border-collections': 'Cross-border payment platform reviews: account setup, fees, withdrawal speed, and risk cases from real usage.',
-    'social-media': 'Social media playbooks: content strategy and client development on Facebook, LinkedIn, and WhatsApp for exporters.',
-    'artificial-intelligence': 'AI tool reviews and tutorials: coding assistants, API access, and subscription payment options compared.',
-    seo: 'SEO and traffic guides: search optimization, AI Overview impact, GSC analysis, and link building in practice.',
-    'resource-share': 'Free resources: developer tools, SaaS free tiers, and budget VPS deals, updated regularly.',
+    'virtual-credit-card': 'How each virtual card handles onboarding, top-ups, monthly and transaction fees, KYC, and where accounts get shut down.',
+    'technology-share': 'Servers, certificates, WordPress and API plumbing — the steps we ran, and where each one got stuck.',
+    cryptocurrency: 'Funding cards with stablecoins, on-chain fees, how long exchange withdrawals take, and how to pick a crypto card.',
+    'cross-border-collections': 'Payout platforms: account setup, fee structure, withdrawal speed, and the risk cases we actually hit.',
+    'social-media': 'Finding customers on Facebook, LinkedIn and WhatsApp — what to post, and how to open a conversation.',
+    'artificial-intelligence': 'Coding assistants, API access and paying for subscriptions — the few that were worth keeping.',
+    seo: 'Ranking, indexing, links: what changed when we did the work versus when we did not.',
+    'resource-share': 'Dev tools, SaaS free tiers and cheap VPS — only the ones still in use.',
   },
 }
 export function pageDescFor(lang, slug) { return (PAGE_DESC[lang] || {})[slug] || null }
