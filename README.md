@@ -18,11 +18,14 @@ virtualcardx.com 的 Cloudflare Workers 源码（Hono + D1 `vcx-db` + R2 `vcx-me
 ## 开发
 
 ```bash
-npm install            # hono
+npm install            # hono + wrangler(devDependencies 精确锁定 4.156.0)
 npm test               # 跑回归套件（无需联网、无需 wrangler）
-npx wrangler dev       # 本地模式;加 --remote 连生产 D1/R2
-npx wrangler deploy    # 需 CLOUDFLARE_API_TOKEN;wrangler 自动打包 index.js
+npm run dev            # 本地模式;加 --remote 连生产 D1/R2
+./deploy_vcx.sh        # 部署;需 CLOUDFLARE_API_TOKEN 环境变量
 ```
+
+wrangler 版本在 `package.json` 里写死（不带 `^`），`deploy_vcx.sh` 走
+`node_modules/.bin/wrangler` 而不是 `npx wrangler`，避免不同机器拉到不同大版本。
 
 ## D1 初始化与迁移
 
@@ -33,10 +36,24 @@ npx wrangler d1 create vcx-db
 npx wrangler d1 execute vcx-db --remote --file db/schema.sql
 ```
 
-已存在的库（补 `sticky` 列与索引）：
+已存在的库（补索引）：
 
 ```bash
-npx wrangler d1 execute vcx-db --remote --file db/migrations/2026-10-31-schema-sync.sql
+# 先确认 sticky 是否已在（生产库 2026-08 已手工加过）
+npx wrangler d1 execute vcx-db --remote --command "PRAGMA table_info(posts)"
+```
+
+`ALTER TABLE ... ADD COLUMN` 在列已存在时会报 duplicate column 并中断整个文件，
+所以**列已存在就不要跑 --file**，只执行索引部分：
+
+```bash
+npx wrangler d1 execute vcx-db --remote --command "\
+CREATE INDEX IF NOT EXISTS idx_posts_lang_status ON posts(lang, status);\
+CREATE INDEX IF NOT EXISTS idx_posts_path_lang ON posts(path, lang);\
+CREATE INDEX IF NOT EXISTS idx_pages_slug_lang ON pages(slug, lang);\
+CREATE INDEX IF NOT EXISTS idx_categories_slug ON categories(slug);\
+CREATE INDEX IF NOT EXISTS idx_media_filename ON media(filename);\
+CREATE INDEX IF NOT EXISTS idx_media_path ON media(path);"
 ```
 
 > `tests/schema.test.mjs` 会校验“代码里查询的列”都在 `db/schema.sql` 里，

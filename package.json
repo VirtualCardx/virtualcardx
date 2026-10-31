@@ -14,5 +14,8 @@
   "type": "module",
   "dependencies": {
     "hono": "^4.13.2"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
   }
 }
