@@ -29,6 +29,22 @@ test('尾斜杠规范化保留 query', async () => {
   assert.equal(res.headers.get('location'), 'https://virtualcardx.com/about/?x=1')
 })
 
+test('分类条标出当前分类，其余页面不标', async () => {
+  const { env, ctx } = fresh()
+  const cat = await (await fetchPath(env, ctx, '/virtual-credit-card/')).text()
+  assert.equal((cat.match(/aria-current="page"/g) || []).length, 1, '分类页只该标一个当前分类')
+  assert.ok(cat.includes('aria-current="page">虚拟卡评测<'), '当前分类要落在「虚拟卡评测」上')
+  assert.ok(cat.includes('<span class="label">分类</span>'), '分类条要有左侧标签')
+
+  const home = await (await fetchPath(env, ctx, '/')).text()
+  const bar = home.match(/<div class="cat-bar">[\s\S]*?<\/nav>/)?.[0] || ''
+  assert.ok(bar && !bar.includes('aria-current'), '首页的分类条不该有当前态')
+
+  const en = await (await fetchPath(env, ctx, '/en/virtual-credit-card/')).text()
+  assert.ok(en.includes('<span class="label">Sections</span>'), '英文站标签要用 Sections')
+  assert.ok(en.includes('aria-current="page">Virtual Cards<'), '英文站要标出当前分类')
+})
+
 test('静态资源与 API 不被尾斜杠规则改写', async () => {
   const { env, ctx } = fresh()
   for (const p of ['/robots.txt', '/sitemap.xml', '/api/health']) {
@@ -379,6 +395,8 @@ test('列表网格按列数补齐占位格，末行不留缺口', async () => {
 })
 
 test('英文首页的分类名走英文映射，不吐库里的中文名', async () => {
+  // 英文首页只收「真英文文章」（日期路径，或纯 slug + 有翻译配对），
+  // 所以这篇要带 translation_id，否则它根本不会进列表，断言就成了空转
   const { env, ctx } = fresh({
     posts: [
       ...basePosts,
@@ -386,11 +404,12 @@ test('英文首页的分类名走英文映射，不吐库里的中文名', async
         id: 301, lang: 'en', slug: 'en-cat-post', title: 'Card With Category',
         excerpt: 'Has a category.', content: '<p>Body</p>', path: 'en-cat-post',
         date: '2026-05-01', modified: '2026-05-01', status: 'publish',
-        featured_media: null, category_ids: '[7]', tag_ids: '[]', translation_id: null, sticky: 0,
+        featured_media: null, category_ids: '[7]', tag_ids: '[]', translation_id: 5, sticky: 0,
       },
     ],
   })
   const html = await (await fetchPath(env, ctx, '/en/')).text()
+  assert.ok(html.includes('Card With Category'), '这篇英文文章应出现在英文首页')
   assert.ok(html.includes('Virtual Card Reviews'), '英文站应显示分类的英文名')
   assert.ok(!html.includes('虚拟卡评测'), '英文站不应出现中文分类名')
 })

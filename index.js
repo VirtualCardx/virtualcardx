@@ -275,15 +275,19 @@ html[lang="zh"] .label{letter-spacing:.06em}
 .lang-switch{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
 .lang-switch:hover{color:var(--signal);text-decoration:none}
 
-/* ===== 分类条：文字链接，一条细线收口 ===== */
-.cat-bar{border-bottom:1px solid var(--rule)}
-.cat-bar-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:36px;display:flex;align-items:center;gap:24px;overflow-x:auto}
+/* ===== 分类条：页头下面的一行目录。
+   自己不再画收口线：它属于页头这一块，下缘由 hero / 面包屑的顶线来收。
+   原来这里多一条线，页头底线、这条、hero 顶线挤在 70px 里，看着像没对齐 ===== */
+.cat-bar-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:36px;display:flex;align-items:center;gap:22px;overflow-x:auto}
 .cat-bar-inner::-webkit-scrollbar{display:none}
+.cat-bar .label{padding-right:14px;border-right:1px solid var(--rule);font-size:11px;flex:none}
 .cat-bar a{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
 .cat-bar a:hover{color:var(--signal);text-decoration:none}
+/* 当前分类：颜色提到正文色 + 一条 1px 信号线，不用加背景色 */
+.cat-bar a[aria-current]{color:var(--ink);font-weight:500;border-bottom:1px solid var(--signal);padding-bottom:2px}
 
 /* ===== 主布局：详情页 19rem 侧栏 ===== */
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;max-width:var(--w);margin:0 auto;padding:30px 16px 56px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;max-width:var(--w);margin:0 auto;padding:22px 16px 56px}
 .layout.no-sidebar{grid-template-columns:minmax(0,1fr)}
 .layout>main{min-width:0}
 
@@ -652,6 +656,11 @@ function layout(lang, title, desc, body, opts={}) {
   const base = baseOf(lang)
   const cats = lang==='en' ? CATS_EN : CATS_ZH
   const catLinks = cats.map(([u,n]) => `<a href="${u}">${n}</a>`).join('')
+  // 分类条要标出当前所在分类（分类页才传 opts.cat），页脚那份不用
+  const catBarLinks = cats.map(([u,n]) => {
+    const on = opts.cat && u.replace(/^\/en\//, '/').split('/').filter(Boolean).pop() === opts.cat
+    return `<a href="${u}"${on ? ' aria-current="page"' : ''}>${n}</a>`
+  }).join('')
   const altHref = langSwitchHref(lang, opts.path)
   const altLabel = lang==='en' ? '中文' : 'English'
   const searchPlaceholder = lang==='en' ? 'Search...' : '搜索文章...'
@@ -713,7 +722,6 @@ ${opts.extraHead||''}
         <button type="submit">${lang==='en'?'Go':'搜索'}</button>
       </form>
       <a href="${base}">${homeLabel}</a>
-      <a href="${base}virtual-credit-card/">${lang==='en'?'Virtual Card Reviews':'虚拟卡评测'}</a>
       <a href="${base}about/">${lang==='en'?'About':'关于'}</a>
       <a href="${base}contact/">${lang==='en'?'Contact':'联系'}</a>
     </nav>
@@ -729,7 +737,7 @@ ${opts.extraHead||''}
     </div>
   </div>
 </header>
-<div class="cat-bar"><div class="cat-bar-inner">${catLinks}</div></div>
+<div class="cat-bar"><nav class="cat-bar-inner" aria-label="${lang==='en'?'Sections':'分类'}"><span class="label">${lang==='en'?'Sections':'分类'}</span>${catBarLinks}</nav></div>
 <div class="layout${opts.noSidebar?' no-sidebar':''}">
   <main>${body}</main>
   ${sidebar}
@@ -1111,7 +1119,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
       ? `Page ${page} of ${name}.`
       : `${name}第 ${page} 页。`)
     : (categoryDescFor(lang, childSlug || parentSlug) || `${name} category on VirtualCardx`)
-  return layout(lang, pageTitle, pageDesc, body, { noSidebar:true, path: canonicalPath, jsonld: categoryJsonld })
+  return layout(lang, pageTitle, pageDesc, body, { noSidebar:true, path: canonicalPath, jsonld: categoryJsonld, cat: parentSlug })
 }
 
 // 日期排序键。posts.date 混存 ISO 与 "November 21, 2025" 两种格式，
