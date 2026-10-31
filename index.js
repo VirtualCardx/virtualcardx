@@ -312,7 +312,10 @@ html[lang="zh"] .section-head h2{font-family:var(--sans);font-size:13px;font-wei
 /* ===== 列表：共享细线网格。容器 border-left，格子自己 border-right+bottom。
    不满的末行补空单元格（.cell-empty），否则最后一行会缺一块边框，看着像没画完 ===== */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(296px,1fr));border-top:1px solid var(--rule);border-left:1px solid var(--rule)}
-.cell-empty{pointer-events:none}
+/* 占位格只在网格排成 3 列（内容宽 >= 888px）时才需要：此时每页 10 条会剩 2 格。
+   用两个类压过 .cell 的 display:flex —— 单类同权重，后定义的那个会赢 */
+.cell.cell-empty{display:none;pointer-events:none}
+@media(min-width:920px){.cell.cell-empty{display:flex}}
 .cell{position:relative;display:flex;flex-direction:column;padding:22px 24px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}
 .cell-no{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-bottom:10px;font-variant-numeric:tabular-nums}
 .cell h3{font-size:16px;font-weight:600;line-height:1.36;margin:0 0 8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -443,16 +446,10 @@ html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-sp
   .fact+.fact{border-left:1px solid var(--rule);padding-left:12px}
   .fact .v{font-size:16px}
   .fact .k{font-size:11px}
-  /* 网格靠 minmax(296px) 自己退回一列，不用在这里写死 */
-  .cell-empty{display:none}
   .only-mobile{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:6px 12px;margin:0 0 20px;padding:12px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
   .only-mobile dt{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
   .only-mobile dd{margin:0;font-family:var(--mono);font-size:12px;color:var(--ink);text-align:right}
   .article h1{font-size:1.6rem}
-}
-/* 624px 以下网格只剩一列，此时占位格会变成两行空白，直接隐藏 */
-@media(max-width:630px){
-  .cell-empty{display:none}
 }
 /* 370px 以下三列塞不下 "2026-10-30"（会折成两行），退回竖排 */
 @media(max-width:370px){
@@ -933,8 +930,9 @@ async function renderPostCards(c, lang, posts, opts = {}) {
   }).join('')
 }
 
-// 列表网格的外壳。末行不满时补空单元格：列数在 1/2/3 之间变，补到 3 的倍数
-// 既能填满 3 列也能填满 2 列；手机单列时这些空格子由 CSS 隐藏。
+// 列表网格的外壳。末行不满时补空单元格，让表格线收口。
+// 只在 3 列的宽度下显示这些占位格（见 .cell-empty 的媒体查询）：2 列和 1 列时
+// 每页 10 条本来就排得整，补上反而多出一整行空白。
 function gridBlock(cards, count) {
   if (!cards) return ''
   const pad = (3 - (count % 3)) % 3

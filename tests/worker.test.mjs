@@ -342,7 +342,7 @@ test('媒体上传失败时回滚 DB 记录', async () => {
 
 test('列表网格按列数补齐占位格，末行不留缺口', async () => {
   const { env, ctx } = fresh()
-  // fixtures 里分类 7 有 2 篇，补 1 格到 3 的倍数
+  // fixtures 里分类 7 有 2 篇，补 1 格凑满 3 列
   const cat = await (await fetchPath(env, ctx, '/virtual-credit-card/')).text()
   assert.equal((cat.match(/class="cell cell-empty"/g) || []).length, 1, '2 张卡片应补 1 个占位格')
 
@@ -350,12 +350,10 @@ test('列表网格按列数补齐占位格，末行不留缺口', async () => {
   const home = await (await fetchPath(env, ctx, '/')).text()
   assert.equal((home.match(/class="cell cell-empty"/g) || []).length, 2, '4 张卡片应补 2 个占位格')
 
-  // 正好满行时不补
-  const many = fresh({
-    posts: basePosts.filter(p => p.lang === 'zh').slice(0, 3),
-  })
-  const exact = await (await fetchPath(many.env, many.ctx, '/')).text()
-  assert.equal((exact.match(/class="cell cell-empty"/g) || []).length, 0, '3 张卡片刚好满行')
+  // 3 条正好满 3 列，不补
+  const three = fresh({ posts: basePosts.filter(p => p.lang === 'zh').slice(0, 3) })
+  const html3 = await (await fetchPath(three.env, three.ctx, '/')).text()
+  assert.equal((html3.match(/class="cell cell-empty"/g) || []).length, 0, '3 张卡片刚好满行')
 })
 
 test('英文首页的分类名走英文映射，不吐库里的中文名', async () => {
