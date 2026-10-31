@@ -20,12 +20,38 @@ virtualcardx.com 的 Cloudflare Workers 源码（Hono + D1 `vcx-db` + R2 `vcx-me
 ```bash
 npm install            # hono + wrangler(devDependencies 精确锁定 4.156.0)
 npm test               # 跑回归套件（无需联网、无需 wrangler）
-npm run dev            # 本地模式;加 --remote 连生产 D1/R2
+npm run dev            # 本地跑；需 CLOUDFLARE_API_TOKEN（见下）
 ./deploy_vcx.sh        # 部署;需 CLOUDFLARE_API_TOKEN 环境变量
 ```
 
 wrangler 版本在 `package.json` 里写死（不带 `^`），`deploy_vcx.sh` 走
 `node_modules/.bin/wrangler` 而不是 `npx wrangler`，避免不同机器拉到不同大版本。
+
+### 本地跑真实数据
+
+D1 和 R2 的本地模拟是空的。有内容的本地站要先把线上库拉一份下来：
+
+```bash
+# 1. 导出线上 D1（3.8MB 左右，导期间库会短暂只读）
+./node_modules/.bin/wrangler d1 export vcx-db --remote --output=.local-db/vcx-dump.sql
+
+# 2. 灌进本地 D1（.wrangler/state 内的模拟库，可反复重灌）
+./node_modules/.bin/wrangler d1 execute vcx-db --local --file=.local-db/vcx-dump.sql
+```
+
+之后 `npm run dev` 就是 D1 走本地副本、R2 走线上桶。
+`wrangler.toml` 里给 R2 加了 `remote = true`，只影响 `dev`、`deploy` 会忽略它；
+不这么配的话本地 R2 为空，缩略图会全部 404。
+
+注意 **`--local` 参数会覆盖单项的 `remote = true`**，加了这个 flag 就等于全本地、
+图片必然 404。要在完全离线、不碰线上的情况下调样式，才用它：
+
+```bash
+npm run dev -- --local
+```
+
+`CLOUDFLARE_API_TOKEN` 只在 R2 走线上时需要，且它能让 `dev` 读到生产桶 ——
+别拿它跑不受信任的代码。
 
 ## D1 初始化与迁移
 

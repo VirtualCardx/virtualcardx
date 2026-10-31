@@ -12,3 +12,6 @@ database_id = "d8d9395b-2580-41ba-8ce9-300b5754b42d"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "vcx-media"
+# 仅对 `wrangler dev` 生效: 本地调样式时直接读线上图片桶, 否则本地 R2 为空、
+# 所有缩略图 404。`wrangler deploy` 忽略该字段。
+remote = true
