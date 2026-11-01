@@ -295,9 +295,16 @@ html[lang="zh"] .label{letter-spacing:.06em}
 .mk-frame{fill:none;stroke:currentColor;stroke-width:1.5}
 .mk-band{fill:currentColor}
 .mk-chip{fill:var(--signal)}
-.main-nav{display:flex;align-items:center;gap:26px;margin-right:auto}
-.main-nav a{font-size:13px;color:var(--ink-2)}
+.main-nav{display:flex;align-items:center;gap:26px;margin-right:auto;min-width:0}
+.main-nav a{font-size:13px;color:var(--ink-2);white-space:nowrap}
 .main-nav a:hover{color:var(--ink);text-decoration:none}
+/* 当前分类只提字重与颜色，再加一条 1px 信号线。
+   线用伪元素定位，不占盒高：换成 border-bottom 这一项会比邻居高 1px，
+   整行文字的基线跟着往下挪，一列导航就看得出参差 */
+.main-nav a[aria-current="page"]{color:var(--ink);font-weight:500;position:relative}
+.main-nav a[aria-current="page"]::after{content:'';position:absolute;left:0;right:0;bottom:1px;height:1px;background:var(--signal)}
+/* 分类与「关于 / 联系」之间留一道发丝线：同一条导航，两类入口仍然分开 */
+.nav-rule{width:1px;height:12px;background:var(--rule);flex:none;margin:0 -6px}
 .nav-right{display:flex;align-items:center;gap:16px}
 .menu-toggle{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-direction:column;gap:5px}
 .menu-toggle .bar{display:block;width:18px;height:1.5px;background:var(--ink);transition:transform .16s,opacity .16s}
@@ -316,24 +323,16 @@ html[lang="zh"] .label{letter-spacing:.06em}
 .lang-switch{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
 .lang-switch:hover{color:var(--signal);text-decoration:none}
 
-/* ===== 分类条：页头下面的一行目录。
-   自己不再画收口线：它属于页头这一块，下缘由 hero / 面包屑的顶线来收。
-   原来这里多一条线，页头底线、这条、hero 顶线挤在 70px 里，看着像没对齐 ===== */
-.cat-bar-inner{max-width:var(--w);margin:0 auto;padding:0 16px;height:36px;display:flex;align-items:center;gap:22px;overflow-x:auto}
-.cat-bar-inner::-webkit-scrollbar{display:none}
-.cat-bar .label{padding-right:14px;border-right:1px solid var(--rule);font-size:11px;flex:none}
-.cat-bar a{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
-.cat-bar a:hover{color:var(--signal);text-decoration:none}
-/* 当前分类：颜色提到正文色 + 一条 1px 信号线，不用加背景色 */
-.cat-bar a[aria-current]{color:var(--ink);font-weight:500;border-bottom:1px solid var(--signal);padding-bottom:2px}
-
 /* ===== 主布局：详情页 19rem 侧栏 ===== */
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;max-width:var(--w);margin:0 auto;padding:22px 16px 56px}
 .layout.no-sidebar{grid-template-columns:minmax(0,1fr)}
 .layout>main{min-width:0}
 
-/* ===== Hero：不居中。左标题，右三条数字事实，共用同一条起始横线 ===== */
-.hero{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;border-top:1px solid var(--rule);padding-top:24px;margin-bottom:44px}
+/* ===== Hero：不居中。左标题，右三条数字事实，两列同一条起始基线 =====
+   分类条收进主导航以后，页头底线到这里只剩 22px：再画一条顶线就成了
+   两条细线并排、宽度还不一样，看着像没对齐。所以 hero 自己不再画线，
+   上沿交给页头那条；右列的三条事实只保留行间线。 */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:56px;margin-bottom:44px}
 .hero-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;font-family:var(--mono);font-size:12px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2)}
 html[lang="zh"] .hero-kicker{letter-spacing:.06em}
 .hero-kicker::before{content:'';width:9px;height:9px;background:var(--signal);display:block}
@@ -487,7 +486,32 @@ html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-sp
 .notfound .links{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px}
 
 /* ===== 响应式 ===== */
+/* 六项导航 + logo + 搜索框在 1100px 以下开始挤，先把间距和搜索框收紧一档 */
+@media(max-width:1100px){
+  .header-inner{gap:22px}
+  .main-nav{gap:16px}
+  .search-box input{width:120px}
+}
+/* 再窄就整块收进抽屉。断点取 900，跟下面正文收成单栏同一刻：
+   六项并排在 900px 还剩 120px 余量，真正塞不下要到 780px 左右，
+   但导航换形态和正文换栏位同时发生，页面不会在中间地带显得错位 */
 @media(max-width:900px){
+  .header-inner{height:56px;flex-wrap:nowrap;padding:0 16px;gap:0;position:relative}
+  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);flex-direction:column;align-items:stretch;gap:0;border-bottom:1px solid var(--rule);z-index:99;margin-right:0}
+  .main-nav.open{display:flex}
+  .main-nav a{padding:13px 16px;border-bottom:1px solid var(--rule);font-size:14px;color:var(--ink)}
+  .main-nav a:last-child{border-bottom:none}
+  /* 竖排里每一行都占满宽度，横线会变成贴着行底的通栏线，改用字重区分当前项 */
+  .main-nav a[aria-current="page"]{font-weight:600}
+  .main-nav a[aria-current="page"]::after{display:none}
+  .nav-rule{display:none}
+  .nav-search{display:flex;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .nav-search input{flex:1;width:auto;min-width:0;height:34px}
+  .nav-search button{height:34px}
+  .head-search{display:none}
+  .nav-right{margin-left:auto;width:auto;padding:0;border-top:none;gap:14px}
+  .menu-toggle{display:flex}
+  /* 正文同时收成单栏 */
   .layout{grid-template-columns:minmax(0,1fr);gap:0;padding:24px 16px 48px}
   .sidebar{display:flex;position:static;gap:28px;margin-top:40px;padding-top:4px;border-top:1px solid var(--rule)}
   .sidebar .record-widget{display:none}
@@ -513,19 +537,6 @@ html[lang="zh"] .footer-col h4{font-family:var(--sans);font-weight:600;letter-sp
   .fact .k{font-size:12px}
 }
 @media(max-width:760px){
-  .header-inner{height:56px;flex-wrap:nowrap;padding:0 16px;gap:0;position:relative}
-  /* 导航收进下拉面板，搜索框也一起进去：否则 header 变成两行，sticky 时白占 104px */
-  .main-nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--paper);flex-direction:column;align-items:stretch;gap:0;border-bottom:1px solid var(--rule);z-index:99;margin-right:0}
-  .main-nav.open{display:flex}
-  .main-nav a{padding:13px 16px;border-bottom:1px solid var(--rule);font-size:14px;color:var(--ink)}
-  .main-nav a:last-child{border-bottom:none}
-  .nav-search{display:flex;padding:12px 16px;border-bottom:1px solid var(--rule)}
-  .nav-search input{flex:1;width:auto;min-width:0;height:34px}
-  .nav-search button{height:34px}
-  .head-search{display:none}
-  .nav-right{margin-left:auto;width:auto;padding:0;border-top:none;gap:14px}
-  .menu-toggle{display:flex}
-  .cat-bar-inner{gap:18px;padding:0 16px}
   .page-title{font-size:1.4rem}
   /* 页码 + 「1 / 15」在 358px 里放不下，会被挤到第二行、只留一条孤线。
      页码里已经有末页数字，这里直接省掉计数 */
@@ -797,8 +808,9 @@ function layout(lang, title, desc, body, opts={}) {
   const base = baseOf(lang)
   const cats = lang==='en' ? CATS_EN : CATS_ZH
   const catLinks = cats.map(([u,n]) => `<a href="${u}">${n}</a>`).join('')
-  // 分类条要标出当前所在分类（分类页才传 opts.cat），页脚那份不用
-  const catBarLinks = cats.map(([u,n]) => {
+  // 分类并进主导航：不再单起一行「分类 | …」。顺序是首页 → 三个分类 →
+  // 发丝线 → 关于/联系，分类仍要标出当前所在那一栏（分类页才传 opts.cat）
+  const catNavLinks = cats.map(([u,n]) => {
     const on = opts.cat && u.replace(/^\/en\//, '/').split('/').filter(Boolean).pop() === opts.cat
     return `<a href="${u}"${on ? ' aria-current="page"' : ''}>${n}</a>`
   }).join('')
@@ -886,6 +898,8 @@ ${opts.extraHead||''}
         <button type="submit">${lang==='en'?'Go':'搜索'}</button>
       </form>
       <a href="${base}">${homeLabel}</a>
+      ${catNavLinks}
+      <span class="nav-rule" aria-hidden="true"></span>
       <a href="${base}about/">${lang==='en'?'About':'关于'}</a>
       <a href="${base}contact/">${lang==='en'?'Contact':'联系'}</a>
     </nav>
@@ -901,7 +915,6 @@ ${opts.extraHead||''}
     </div>
   </div>
 </header>
-<div class="cat-bar"><nav class="cat-bar-inner" aria-label="${lang==='en'?'Sections':'分类'}"><span class="label">${lang==='en'?'Sections':'分类'}</span>${catBarLinks}</nav></div>
 <div class="layout${opts.noSidebar?' no-sidebar':''}">
   <main id="main" tabindex="-1">${body}</main>
   ${sidebar}

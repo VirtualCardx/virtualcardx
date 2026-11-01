@@ -31,19 +31,24 @@ test('尾斜杠规范化保留 query', async () => {
   assert.equal(res.headers.get('location'), 'https://virtualcardx.com/about/?x=1')
 })
 
-test('分类条标出当前分类，其余页面不标', async () => {
+test('分类并进主导航，当前分类只标一个', async () => {
   const { env, ctx } = fresh()
   const cat = await (await fetchPath(env, ctx, '/virtual-credit-card/')).text()
-  assert.equal((cat.match(/aria-current="page"/g) || []).length, 1, '分类页只该标一个当前分类')
-  assert.ok(cat.includes('aria-current="page">虚拟卡评测<'), '当前分类要落在「虚拟卡评测」上')
-  assert.ok(cat.includes('<span class="label">分类</span>'), '分类条要有左侧标签')
+  const nav = cat.match(/<nav class="main-nav"[\s\S]*?<\/nav>/)?.[0] || ''
+  assert.ok(nav.includes('href="/virtual-credit-card/"'), '主导航里要有分类入口')
+  assert.equal((nav.match(/aria-current="page"/g) || []).length, 1, '分类页只该标一个当前分类')
+  assert.ok(nav.includes('aria-current="page">虚拟卡评测<'), '当前分类要落在「虚拟卡评测」上')
+  assert.ok(!cat.includes('class="cat-bar"'), '不再单起一条分类条')
+
+  // 顺序：首页 → 分类 → 发丝线 → 关于/联系。分类排在静态页前面，两类入口才分得开
+  const order = ['首页', '虚拟卡评测', 'nav-rule', '关于', '联系'].map(s => nav.indexOf(s))
+  assert.ok(order.every((v, i) => v > -1 && (i === 0 || v > order[i - 1])), `导航顺序不对：${order}`)
 
   const home = await (await fetchPath(env, ctx, '/')).text()
-  const bar = home.match(/<div class="cat-bar">[\s\S]*?<\/nav>/)?.[0] || ''
-  assert.ok(bar && !bar.includes('aria-current'), '首页的分类条不该有当前态')
+  const navHome = home.match(/<nav class="main-nav"[\s\S]*?<\/nav>/)?.[0] || ''
+  assert.ok(navHome && !navHome.includes('aria-current'), '首页不该有当前分类态')
 
   const en = await (await fetchPath(env, ctx, '/en/virtual-credit-card/')).text()
-  assert.ok(en.includes('<span class="label">Sections</span>'), '英文站标签要用 Sections')
   assert.ok(en.includes('aria-current="page">Virtual Cards<'), '英文站要标出当前分类')
 })
 
