@@ -709,6 +709,47 @@ test('中文分页本地化并标记禁用状态', async () => {
   assert.ok(html.includes('class="first disabled" aria-disabled="true"'), '首页的第一页按钮应禁用')
 })
 
+// 归档第 2 页此前 h1 只有「文章归档第 N 页」：没有主题词，title 同样没有，
+// 也不带面包屑和结构化数据（分类页的分页两样都有）。
+test('归档分页：h1 是主题词，页码只留在 title，面包屑与结构化数据齐全', async () => {
+  const extra = Array.from({ length: 10 }, (_, i) => ({
+    id: 610 + i, lang: 'zh', slug: `archive-${i}`, title: `归档 ${i}`, excerpt: '摘要',
+    content: '<p>x</p>', path: `archive-${i}`, date: '2026-05-01', modified: '2026-05-01',
+    status: 'publish', featured_media: null, category_ids: '[]', tag_ids: '[]', translation_id: null, sticky: 0,
+  }))
+  const { env, ctx } = fresh({ posts: extra })
+  const html = await (await fetchPath(env, ctx, '/page/2/')).text()
+
+  assert.match(html, /<h1 class="page-title">全部评测<\/h1>/, 'h1 要承载主题，不能只有页码')
+  assert.ok(!html.includes('文章归档'), '不再输出没有检索价值的「文章归档」')
+  assert.ok(html.includes('<title>全部评测 · 第 2 页 - VirtualCardx</title>'), '关键词在前、页码在后，且保持唯一')
+  assert.ok(html.includes('全部评测第 2 页：'), 'description 要说明这一页是什么')
+  assert.ok(html.includes('<nav class="breadcrumbs"'), '归档分页要和分类分页一样有面包屑')
+  assert.ok(html.includes('aria-label="Breadcrumb"><a href="/">首页</a> / <span>第 2 页</span>'), '面包屑结构固定')
+
+  const graph = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])['@graph']
+  const types = graph.map(n => n['@type'])
+  assert.ok(types.includes('CollectionPage'), '分页要有 CollectionPage')
+  assert.ok(types.includes('BreadcrumbList'), '分页要有 BreadcrumbList')
+  const crumb = graph.find(n => n['@type'] === 'BreadcrumbList')
+  assert.equal(crumb.itemListElement.length, 2)
+  assert.equal(crumb.itemListElement[1].item, 'https://virtualcardx.com/page/2/')
+
+  // 英文侧同一套规则：主题词在前，页码只出现在 title
+  const enExtra = Array.from({ length: 10 }, (_, i) => ({
+    id: 620 + i, lang: 'en', slug: `en-archive-${i}`, title: `Entry ${i}`, excerpt: 'Body copy.',
+    content: '<p>x</p>', path: `2026/05/0${(i % 9) + 1}/en-archive-${i}`,
+    date: '2026-05-01', modified: '2026-05-01',
+    status: 'publish', featured_media: null, category_ids: '[]', tag_ids: '[]', translation_id: null, sticky: 0,
+  }))
+  const enEnv = fresh({ posts: [...extra, ...enExtra] })
+  const enHtml = await (await fetchPath(enEnv.env, enEnv.ctx, '/en/page/2/')).text()
+  assert.match(enHtml, /<h1 class="page-title">All reviews<\/h1>/, '英文 h1 同样是主题词')
+  assert.ok(enHtml.includes('<title>All reviews · Page 2 - VirtualCardx</title>'), '英文 title 关键词在前')
+  assert.ok(!enHtml.includes('Archive, page'), '不再输出「Archive, page N」')
+  assert.equal((await fetchPath(env, ctx, '/en/page/1/')).status, 301, '第 1 页仍然 301 回首页')
+})
+
 test('有特色图时正文首图不抢 LCP，并折叠虚假 srcset', async () => {
   const { env, ctx } = fresh({
     posts: basePosts.map(p => p.id === 1 ? {

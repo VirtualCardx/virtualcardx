@@ -1341,6 +1341,10 @@ async function renderHomePage(c, lang, page) {
     `SELECT MAX(MAX(COALESCE(date_ts,0), COALESCE(modified_ts,0))) AS ts FROM posts WHERE ${where}`
   ).first()
   const latestDate = latest?.ts ? fmtDate(new Date(Number(latest.ts) * 1000).toISOString()) : ''
+  // 第 2 页起才是归档页。主题词站在 h1 上，页码退到 <title> 和副行：
+  // 15 条分页 URL 共用同一个 h1 不算重复内容，唯一性交给 title 的页码。
+  const archiveName = lang === 'en' ? 'All reviews' : '全部评测'
+  const pageLabel = lang === 'en' ? `Page ${page}` : `第 ${page} 页`
   const heroSection = page === 1 ? `
 <section class="hero">
   <div>
@@ -1361,7 +1365,12 @@ async function renderHomePage(c, lang, page) {
     <div class="fact"><span class="k">${lang==='en'?'Last update':'最近更新'}</span><span class="v">${esc(latestDate)}</span></div>
     <div class="fact"><span class="k">${lang==='en'?'Categories':'分类'}</span><span class="v">${String((lang==='en'?CATS_EN:CATS_ZH).length).padStart(2,'0')}</span></div>
   </div>
-</section>` : `<h1 class="page-title">${lang==='en'?`Archive, page ${page}`:`文章归档第 ${page} 页`}</h1>`
+</section>` : `
+<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="${base}">${lang==='en'?'Home':'首页'}</a> / <span>${pageLabel}</span></nav>
+<h1 class="page-title">${archiveName}</h1>
+<p class="page-lead">${lang==='en'
+  ? 'Every review across virtual cards, cross-border payments and crypto, newest first.'
+  : '虚拟卡、跨境收款与加密货币三个方向的全部评测，按发布时间倒序。'}</p>`
   // 区块头：上细线 + 左侧标题 + 右侧「本页 / 总数」
   const shown = pageItems.length
   const sectionHead = `<div class="section-head">
@@ -1369,7 +1378,7 @@ async function renderHomePage(c, lang, page) {
     <span class="count">${String(shown).padStart(2,'0')} / ${total}</span>
   </div>`
   const siteUrl = SITE + base
-  const homeJsonld = page === 1 ? {
+  const pageJsonld = page === 1 ? {
     '@context': 'https://schema.org',
     '@graph': [
       {
@@ -1381,13 +1390,38 @@ async function renderHomePage(c, lang, page) {
       },
       { '@type': 'Organization', '@id': `${SITE}/#organization`, name: 'VirtualCardx', url: SITE+'/', logo: { '@type': 'ImageObject', url: `${SITE}/brand/icon-512.png`, width: 512, height: 512 } }
     ]
-  } : undefined
+  } : (() => {
+    // 归档页此前完全不带结构化数据，和分类页的第 2 页不一致。
+    // 这里补 CollectionPage + BreadcrumbList，字段沿用分类页那一套。
+    const pageUrl = `${SITE}${base}page/${page}/`
+    return {
+      '@context': 'https://schema.org',
+      '@graph': [
+        {
+          '@type': 'CollectionPage', '@id': `${pageUrl}#webpage`, url: pageUrl,
+          name: `${archiveName} · ${pageLabel}`,
+          inLanguage: lang==='en' ? 'en' : 'zh-CN',
+          isPartOf: { '@id': `${siteUrl}#website` },
+        },
+        {
+          '@type': 'BreadcrumbList', itemListElement: [
+            { '@type': 'ListItem', position: 1, name: lang==='en'?'Home':'首页', item: siteUrl },
+            { '@type': 'ListItem', position: 2, name: pageLabel, item: pageUrl },
+          ],
+        },
+      ],
+    }
+  })()
   const body = heroSection + sectionHead + gridBlock(cards, pageItems.length) + pagination
+  // 关键词在前、页码在后：用户搜的是「虚拟卡评测」，没人搜「文章归档」。
+  // 页码留着是为了让 15 个分页 URL 各有唯一 title。
   const pageTitle = page>1
-    ? (lang==='en' ? `Archive, page ${page} - VirtualCardx` : `文章归档第 ${page} 页 - VirtualCardx`)
+    ? `${archiveName} · ${pageLabel} - VirtualCardx`
     : (lang==='en' ? 'VirtualCardx | Virtual card records: fees, KYC, funding' : '虚拟信用卡实测记录：费率、KYC、充值到账 | VirtualCardx')
   const pageDesc = page>1
-    ? (lang==='en' ? `Archive page ${page}.` : `文章归档第 ${page} 页。`)
+    ? (lang==='en'
+      ? `${archiveName}, ${pageLabel.toLowerCase()} of ${totalPages} on VirtualCardx: fee maths, KYC friction, funding time and what trips risk checks. ${total} entries in total.`
+      : `${archiveName}${pageLabel}：费率、KYC、充值到账与风控的实测记录，共 ${total} 条。`)
     : (lang==='en' ? 'What each virtual card is like to use: fee maths, where KYC stalls, funding time, and what trips risk checks.' : '各家虚拟卡实际用起来是什么样：费率怎么算、KYC 卡在哪、充值多久到账、什么情况会被风控。')
   const other = lang==='en' ? 'zh' : 'en'
   const otherWhere = other === 'en'
@@ -1400,7 +1434,7 @@ async function renderHomePage(c, lang, page) {
   return layout(lang,
     pageTitle,
     pageDesc,
-    body, { noSidebar: true, path: page>1?`page/${page}/`:'', jsonld: homeJsonld, altHref })
+    body, { noSidebar: true, path: page>1?`page/${page}/`:'', jsonld: pageJsonld, altHref })
 }
 
 // ============ 具体路由 ============
