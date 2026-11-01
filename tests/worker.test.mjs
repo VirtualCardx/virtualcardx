@@ -368,6 +368,39 @@ test('sitemap 同 URL 只出一条：文章占位记录不重复分类页', asyn
   assert.ok(locs.includes('https://virtualcardx.com/cryptocurrency/'), '中文分类页要保留')
 })
 
+test('sitemap 不提交 301 跳转源，也不加验证文件', async () => {
+  // pages 里留着 virtualcardx2026-2 的中英文占位页，而这两个地址在 Worker 里
+  // 301 到 /virtualcardx2026.txt。sitemap 只提交规范页：跳转源必须排除，
+  // 跳转目标（验证文件）本身也不该被当成页面提交。
+  const { env, ctx } = fresh({
+    pages: [
+      ...seed().pages,
+      { id: 91, lang: 'zh', slug: 'virtualcardx2026-2', title: '占位页', content: '<p>x</p>', path: 'virtualcardx2026-2' },
+      { id: 92, lang: 'en', slug: 'virtualcardx2026-2', title: 'Alias', content: '<p>x</p>', path: 'virtualcardx2026-2' },
+    ],
+  })
+  const xml = await (await fetchPath(env, ctx, '/sitemap.xml')).text()
+  const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map(m => m[1])
+
+  assert.ok(!locs.includes('https://virtualcardx.com/virtualcardx2026-2/'), '中文跳转源不能进 sitemap')
+  assert.ok(!locs.includes('https://virtualcardx.com/en/virtualcardx2026-2/'), '英文跳转源不能进 sitemap')
+  assert.ok(!xml.includes('virtualcardx2026.txt'), '验证文件不进 sitemap')
+  assert.equal(new Set(locs).size, locs.length, '排掉别名后仍然不能有重复')
+
+  // 只排这两条：同一批里的正常页面必须都还在
+  for (const keep of ['https://virtualcardx.com/about/', 'https://virtualcardx.com/en/about/',
+    'https://virtualcardx.com/virtual-credit-card/', 'https://virtualcardx.com/en/cryptocurrency/']) {
+    assert.ok(locs.includes(keep), `不该误删 ${keep}`)
+  }
+
+  // 过滤只发生在 sitemap 输出这一层，301 本身照旧
+  const res = await fetchPath(env, ctx, '/en/virtualcardx2026-2/')
+  assert.equal(res.status, 301, '英文旧地址仍要 301')
+  assert.ok((res.headers.get('location') || '').endsWith('/virtualcardx2026.txt'), '301 目标不变')
+  const zh = await fetchPath(env, ctx, '/virtualcardx2026-2/')
+  assert.equal(zh.status, 301, '中文旧地址仍要 301')
+})
+
 test('robots.txt 指向 sitemap', async () => {
   const { env, ctx } = fresh()
   const res = await fetchPath(env, ctx, '/robots.txt')

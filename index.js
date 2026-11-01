@@ -1471,11 +1471,21 @@ app.get('/sitemap.xml', async (c) => {
     return !OLD_CAT_REDIRECTS.some(([from]) => postPath === from.slice(1) || postPath.startsWith(from.slice(1) + '/'))
   })
 
+  // 301 走的旧别名不进 sitemap：pages 里还留着同 slug 的占位页面，
+  // 它自己的路径本身就是跳转源，提交上去只会让爬虫反复撞一次 301。
+  // 判断放在输出这一层，数据库记录、301 表都不动。
+  const isRedirectAlias = (loc) => {
+    if (!loc.startsWith(SITE)) return false
+    const path = loc.slice(SITE.length).replace(/\/+$/, '') || '/'
+    return Object.prototype.hasOwnProperty.call(OLD_URL_REDIRECTS, path)
+  }
+
   // 以最终绝对 URL 为键。先写入的来源先占位：首页/静态页/分类页排在前，
   // 同路径的文章占位记录后到就被丢掉，也不会把自己的日期盖到静态页上。
   const entries = new Map()
   const add = (loc, lastmod) => {
-    if (loc && !entries.has(loc)) entries.set(loc, { loc, lastmod: lastmod || '' })
+    if (!loc || isRedirectAlias(loc) || entries.has(loc)) return
+    entries.set(loc, { loc, lastmod: lastmod || '' })
   }
 
   add(`${SITE}/`)
