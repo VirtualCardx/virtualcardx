@@ -709,3 +709,73 @@ test('英文默认分享图独立，字体使用内容哈希', async () => {
   assert.ok(!en.includes('content="https://virtualcardx.com/brand/og.png"'), '英文页不应回退中文品牌卡')
   assert.match(en, /fonts\/ibm-plex-sans-latin-wght-normal-[a-f0-9]{8}\.woff2/, '字体名必须带内容哈希')
 })
+
+// ---------- 回归：文案承诺、字数口径、英文分类、置顶标记 ----------
+
+test('首页文案把实测与官方资料分开，不再声称全部亲自开卡', async () => {
+  const { env, ctx } = fresh()
+  const zh = await (await fetchPath(env, ctx, '/')).text()
+  assert.ok(zh.includes('亲自实测、官方资料与历史记录分开标注'), '中文首页要写清证据等级')
+  assert.ok(!zh.includes('数字来自我们自己开的卡'), '不能再暗示全部亲自实测')
+  const en = await (await fetchPath(env, ctx, '/en/')).text()
+  assert.ok(en.includes('labelled separately'), '英文首页同样标注证据等级')
+  assert.ok(!en.includes('Numbers come from cards we opened ourselves'), '英文不应保留旧承诺')
+})
+
+test('列表卡片与详情页的字数、阅读时长完全一致', async () => {
+  const body = `<p>${'支付通道'.repeat(100)}</p>`
+  const { env, ctx } = fresh({
+    posts: basePosts.map(p => p.id === 1 ? { ...p, content: body } : p),
+  })
+  const home = await (await fetchPath(env, ctx, '/')).text()
+  const article = await (await fetchPath(env, ctx, '/virtual-credit-card-platform-review/')).text()
+  const cardCount = home.match(/<dt>正文<\/dt><dd>(\d+) 字<\/dd>/)?.[1]
+  const articleCount = article.match(/<dt>正文<\/dt><dd>(\d+) 字<\/dd>/)?.[1]
+  assert.ok(cardCount, '卡片应显示字数')
+  assert.equal(cardCount, articleCount, `卡片 ${cardCount} 字与详情 ${articleCount} 字必须一致`)
+  assert.equal(cardCount, '400', '400 个汉字应计为 400 字')
+  const cardMin = home.match(/约 (\d+) 分钟/)?.[1]
+  assert.equal(cardMin, String(Math.max(1, Math.round(400 / 400))), '卡片阅读时长按 400 字/分')
+})
+
+test('英文按词数统计与估算阅读时间，不按字符数', async () => {
+  const words = Array.from({ length: 440 }, (_, i) => `word${i}`).join(' ')
+  const { env, ctx } = fresh({
+    posts: basePosts.map(p => p.id === 101 ? { ...p, content: `<p>${words}</p>` } : p),
+  })
+  const html = await (await fetchPath(env, ctx, '/en/virtual-credit-card-platform-review/')).text()
+  assert.ok(html.includes('<dd>440 words</dd>'), '英文报词数')
+  assert.ok(!html.includes('chars</dd>'), '英文不再报字符数')
+  assert.ok(html.includes('2 min read'), '440 词按 220 词/分约为 2 分钟')
+  const home = await (await fetchPath(env, ctx, '/en/')).text()
+  assert.ok(home.includes('440 words'), '英文卡片的词数应与详情一致')
+  assert.ok(home.includes('2 min read'), '英文卡片的时长应与详情一致')
+})
+
+test('英文文章的分类名取英文映射，映射不到也不回落中文', async () => {
+  const cats = [
+    ...seed().categories,
+    { id: 9, name: '跨境支付与收款', slug: 'cross-border-payments', parent: 0, description: '', count: 1 },
+  ]
+  const posts = basePosts.map(p => p.id === 101 ? { ...p, category_ids: '[9]' } : p)
+  const { env, ctx } = fresh({ posts, categories: cats })
+  const html = await (await fetchPath(env, ctx, '/en/virtual-credit-card-platform-review/')).text()
+  assert.ok(html.includes('Cross Border Payments'), '未映射的 slug 也要给出英文名')
+  assert.ok(!html.includes('跨境支付与收款'), '英文页不应出现中文分类名')
+  assert.ok(html.includes('<dd>Cross Border Payments</dd>'), 'Filed 字段同样取英文名')
+})
+
+test('置顶文章带标记，日期标签不把首发写成更新', async () => {
+  const posts = basePosts.map(p => p.id === 1 ? { ...p, sticky: 1 } : p)
+  const { env, ctx } = fresh({ posts })
+  const home = await (await fetchPath(env, ctx, '/')).text()
+  assert.match(home, /class="tag">置顶<\/span>/, '置顶文章要有可见标记')
+
+  // 修改时间早于首发时，卡片应写「首发」而不是「更新」
+  const older = basePosts.map(p => p.id === 1 ? { ...p, date: '2026-09-20', modified: '2026-09-01' } : p)
+  const second = fresh({ posts: older })
+  const home2 = await (await fetchPath(second.env, second.ctx, '/')).text()
+  const card = home2.match(/虚拟卡平台实测[\s\S]{0,900}?<\/article>/)?.[0] || ''
+  assert.ok(card.includes('<dt>首发</dt><dd>2026-09-20</dd>'), '修改不晚于首发时标首发')
+  assert.ok(!card.includes('<dt>更新</dt>'), '不能把首发日期标成更新')
+})

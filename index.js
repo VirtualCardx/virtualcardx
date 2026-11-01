@@ -629,6 +629,52 @@ function dateTs(d) {
 function plainText(value) {
   return String(value || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '').trim()
 }
+// 列表卡片和详情页必须共用同一套口径，否则同一篇文章会报出两个字数。
+// 做法：先去掉标签留下可见文本（标签换空格，避免相邻词粘成 "Cards,Regions"），
+// 中文按字符、英文按词数各自算，阅读速度也分开：中文 400 字/分，英文 220 词/分。
+function textOf(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+function textStats(value, lang) {
+  const text = textOf(value)
+  const chars = text.replace(/\s/g, '').length
+  const words = text ? text.split(' ').filter(Boolean).length : 0
+  const readMin = !chars ? 0 : lang === 'en'
+    ? Math.max(1, Math.round(words / 220))
+    : Math.max(1, Math.round(chars / 400))
+  // 英文报词数，中文报字数：英文按字符报会虚高一半以上。
+  const sizeText = lang === 'en'
+    ? (words ? `${words} ${words === 1 ? 'word' : 'words'}` : '')
+    : (chars ? `${chars} 字` : '')
+  return { chars, words, readMin, sizeText, hasText: chars > 0 }
+}
+// 英文页面上不允许出现中文分类名：映射表没有的 slug 也要能给出一个英文名，
+// 兜底是把 slug 拆词首字母大写（cross-border-payments -> Cross Border Payments）。
+function categoryLabel(lang, slug, fallback) {
+  if (lang !== 'en') return fallback || slug || ''
+  const mapped = CATEGORY_NAMES_EN[slug]
+  if (mapped) return mapped
+  return String(slug || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b[a-z]/g, ch => ch.toUpperCase())
+    .trim()
+}
+// 图片 alt 来自媒体库，库里存的是中文；英文页面上宁可退回文章标题也不再吐中文。
+function altFor(lang, alt, fallback) {
+  const value = String(alt || '').trim()
+  if (!value) return fallback || ''
+  if (lang === 'en' && /[\u4e00-\u9fff]/.test(value)) return fallback || ''
+  return value
+}
 function xmlEsc(value) {
   return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;')
 }
@@ -1022,17 +1068,10 @@ async function renderPostCards(c, lang, posts, opts = {}) {
     try { ids = JSON.parse(raw) || [] } catch { ids = [] }
     for (const id of ids) {
       if (!catName.has(id)) continue
-      if (lang === 'en') return CATEGORY_NAMES_EN[catSlug.get(id)] || ''
+      if (lang === 'en') return categoryLabel('en', catSlug.get(id))
       return catName.get(id)
     }
     return ''
-  }
-  // 阅读时长按可见文本计算；列表只取当前页正文，不会因此扫描全表。
-  const bodyLen = (p) => Number(p.body_len) || plainText(p.content).length
-  const readMin = (p) => {
-    const n = bodyLen(p)
-    if (!n) return ''
-    return Math.max(1, Math.round(n / 400))
   }
   return posts.map((p) => {
     const pair = p.path ? pairRows.get(p.path) : null
@@ -1040,21 +1079,29 @@ async function renderPostCards(c, lang, posts, opts = {}) {
     const excerpt = ownExcerpt || (pair ? excerptText(pair.excerpt, 120) : '')
     const excerptLang = !ownExcerpt && pair && pair.excerpt ? ' lang="zh"' : ''
     const cat = catOf(p)
-    const min = readMin(p)
-    const len = bodyLen(p)
-    const zhTag = opts.showZhTag && p.isZhFallback
-      ? `<span class="tag">${lang === 'en' ? 'ZH source' : '中文原文'}</span>` : ''
+    // 字数、阅读时长与详情页同源，避免同一篇文章两个数。
+    const stats = textStats(p.content, lang)
+    const updated = dateTs(fmtDate(p.modified)) > dateTs(fmtDate(p.date))
+    const stampLabel = updated ? (lang === 'en' ? 'Updated' : '更新') : (lang === 'en' ? 'First run' : '首发')
+    const stampDate = updated ? fmtDate(p.modified) : fmtDate(p.date)
+    const tags = [
+      p.sticky ? `<span class="tag">${lang === 'en' ? 'Featured' : '置顶'}</span>` : '',
+      opts.showZhTag && p.isZhFallback ? `<span class="tag">${lang === 'en' ? 'ZH source' : '中文原文'}</span>` : '',
+    ].join('')
     const spec = [
       cat ? `<dt>${lang === 'en' ? 'Filed' : '分类'}</dt><dd>${esc(cat)}</dd>` : '',
-      `<dt>${lang === 'en' ? 'Updated' : '更新'}</dt><dd>${esc(fmtDate(p.modified) || fmtDate(p.date))}</dd>`,
-      len ? `<dt>${lang === 'en' ? 'Length' : '正文'}</dt><dd>${len} ${lang === 'en' ? 'chars' : '字'}</dd>` : ''
+      stampDate ? `<dt>${stampLabel}</dt><dd>${esc(stampDate)}</dd>` : '',
+      stats.sizeText ? `<dt>${lang === 'en' ? 'Length' : '正文'}</dt><dd>${stats.sizeText}</dd>` : ''
     ].join('')
+    const readLabel = stats.readMin
+      ? (lang === 'en' ? `${stats.readMin} min read` : `约 ${stats.readMin} 分钟`)
+      : (lang === 'en' ? 'Review' : '评测')
     return `<article class="cell"${p.isZhFallback ? ' lang="zh"' : ''}>
       <h3><a href="${base}${p.path}/">${esc(p.title)}</a></h3>
       ${excerpt ? `<p${excerptLang}>${esc(excerpt)}</p>` : ''}
       <dl class="spec">${spec}</dl>
       <div class="cell-foot">
-        <span>${min ? (lang === 'en' ? `${min} min read` : `约 ${min} 分钟`) : (lang === 'en' ? 'Review' : '评测')}${zhTag}</span>
+        <span>${readLabel}${tags}</span>
         <span class="arrow" aria-hidden="true">&#8594;</span>
       </div>
     </article>`
@@ -1220,7 +1267,7 @@ async function renderCategory(c, lang, parentSlug, childSlug, page) {
   let name = catRes.results[0].name
   if (lang === 'en') {
     const nameSlug = childSlug || parentSlug
-    name = CATEGORY_NAMES_EN[nameSlug] || name
+    name = categoryLabel('en', nameSlug, name)
   }
   const lead = categoryDescFor(lang, childSlug || parentSlug)
   const sectionHead = `<div class="section-head"><h2>${lang==='en'?'Entries':'条目'}</h2><span class="count">${posts.length} / ${total}</span></div>`
@@ -1289,8 +1336,8 @@ async function renderHomePage(c, lang, page) {
       ? 'What each virtual card is actually like to use'
       : '每家虚拟卡实际用起来是什么样'}</h1>
     <p class="hero-lede">${lang==='en'
-      ? 'Numbers come from cards we opened ourselves. Fees are worked out from actual charges; where KYC stalled and how long funding took are recorded per card. Anything we could not verify is marked unverified.'
-      : '数字来自我们自己开的卡。费率按实际扣款算，KYC 和到账时间记在各篇里。核实不了的说法会标出来。'}</p>
+      ? 'Fees, KYC requirements and funding rules for virtual cards and payment platforms. Self-tested results, official documentation and historical records are labelled separately, and anything we could not verify says so.'
+      : '汇总虚拟卡与支付平台的费率、KYC 和充值规则。亲自实测、官方资料与历史记录分开标注，无法核实的信息会明确说明。'}</p>
     <div class="hero-actions">
       <a class="btn" href="${base}virtual-credit-card/">${lang==='en'?'Browse the archive':'进入评测目录'}</a>
       <a class="btn-quiet" href="${base}about/">${lang==='en'?'How these are tested':'评测是怎么做的'}</a>
@@ -2136,8 +2183,8 @@ app.get('*', async (c) => {
           let content = zp.content
           content = await rewriteImages(c, content, zp.title)
           const recent = await recentPosts(c, 'en')
-          const plainZh = String(zp.content || '').replace(/<[^>]+>/g, '').replace(/\s+/g, '')
-          const readMinZh = Math.max(1, Math.round(plainZh.length / 400))
+          const zhStats = textStats(zp.content, 'zh')
+          const readMinZh = zhStats.readMin || 1
           const body = `<article class="article" lang="zh">
             <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/en/">Home</a></nav>
             <div class="article-header">
@@ -2200,7 +2247,7 @@ app.get('*', async (c) => {
       if (mRes.length) {
         const mp = mRes[0]
         const imageUrl = `${SITE}/${mp.path}`
-        const imageAlt = mp.alt || p.title
+        const imageAlt = altFor(lang, mp.alt, p.title)
         articleImage = imageUrl
         heroHtml = `<img class="article-hero" src="/${esc(mp.path)}" alt="${esc(imageAlt)}"${mp.width&&mp.height?` width="${mp.width}" height="${mp.height}"`:''} fetchpriority="high" decoding="async">`
         ogImageTag = `<meta property="og:image" content="${esc(imageUrl)}">${mp.width&&mp.height?`<meta property="og:image:width" content="${mp.width}"><meta property="og:image:height" content="${mp.height}">`:''}<meta property="og:image:alt" content="${esc(imageAlt)}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(imageUrl)}"><meta name="twitter:image:alt" content="${esc(imageAlt)}">`
@@ -2211,11 +2258,11 @@ app.get('*', async (c) => {
     const articleDesc = excerptText(p.excerpt, 200) || excerptText(p.content, 150)
     const publishedDate = fmtDate(p.date)
     const storedModifiedDate = fmtDate(p.modified)
-    const modifiedDate = dateTs(storedModifiedDate) >= dateTs(publishedDate) && storedModifiedDate
-      ? storedModifiedDate : publishedDate
-    const wordCount = plainText(content).length
-    const readMin = Math.max(1, Math.round(wordCount / 400))
-    // 分类名与链接逐个生成；英文按 slug 映射，不能把中文名直接塞进英文页面。
+    // 只有确实晚于首发才叫「更新」；否则两行日期是同一个值，标签在骗人。
+    const hasUpdate = dateTs(storedModifiedDate) > dateTs(publishedDate)
+    const modifiedDate = hasUpdate ? storedModifiedDate : publishedDate
+    const stats = textStats(content, lang)
+    // 分类名与链接逐个生成；英文按 slug 映射，映射不到也要给出英文兜底，不能回落中文名。
     let catItems = []
     try {
       const ids = JSON.parse(p.category_ids || '[]') || []
@@ -2223,7 +2270,7 @@ app.get('*', async (c) => {
         const rows = await queryAll(c,
           `SELECT id, name, slug FROM categories WHERE id IN (${ph(ids.length)})`, ids)
         catItems = rows.slice(0, 2).map(row => ({
-          name: lang === 'en' ? (CATEGORY_NAMES_EN[row.slug] || row.name) : row.name,
+          name: categoryLabel(lang, row.slug, row.name),
           href: `${base}${row.slug}/`,
         }))
       }
@@ -2235,17 +2282,17 @@ app.get('*', async (c) => {
     const factSummary = `<dl class="only-mobile">
       ${catItems.length?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
       <dt>${lang==='en'?'First run':'首发'}</dt><dd>${esc(publishedDate)}</dd>
-      <dt>${lang==='en'?'Length':'正文'}</dt><dd>${wordCount} ${lang==='en'?'chars':'字'}</dd>
+      <dt>${lang==='en'?'Length':'正文'}</dt><dd>${stats.sizeText}</dd>
     </dl>`
     const articleSidebar = `
       <div class="widget record-widget">
         <h3>${lang==='en'?'Record':'条目信息'}</h3>
         <dl class="kv">
-          <dt>${lang==='en'?'Updated':'更新'}</dt><dd>${esc(modifiedDate)}</dd>
+          ${hasUpdate?`<dt>${lang==='en'?'Updated':'更新'}</dt><dd>${esc(modifiedDate)}</dd>`:''}
           <dt>${lang==='en'?'First run':'首发'}</dt><dd>${esc(publishedDate)}</dd>
           ${catItems.length?`<dt>${lang==='en'?'Filed':'分类'}</dt><dd>${esc(catLabel)}</dd>`:''}
-          <dt>${lang==='en'?'Length':'正文'}</dt><dd>${wordCount} ${lang==='en'?'chars':'字'}</dd>
-          <dt>${lang==='en'?'Read':'预计'}</dt><dd>${lang==='en'?`${readMin} min`:`${readMin} 分钟`}</dd>
+          <dt>${lang==='en'?'Length':'正文'}</dt><dd>${stats.sizeText}</dd>
+          <dt>${lang==='en'?'Read':'预计'}</dt><dd>${lang==='en'?`${stats.readMin} min`:`${stats.readMin} 分钟`}</dd>
           <dt>${lang==='en'?'Lang':'语言'}</dt><dd>${lang==='en'?'English':'中文'}</dd>
         </dl>
       </div>
@@ -2253,8 +2300,8 @@ app.get('*', async (c) => {
         <h3>${lang==='en'?'Written by':'作者'}</h3>
         <div class="author-name">Kenneth Lau</div>
         <p>${lang==='en'
-          ? 'The card was opened and charged; the charges are recorded in the post.'
-          : '卡是自己开的，扣款记录在文里。'}</p>
+          ? 'Each entry labels its evidence: self-tested, official documentation, or historical record.'
+          : '每篇标注证据来源：亲自实测、官方资料或历史记录。'}</p>
       </div>
       <div class="widget">
         <h3>${lang==='en'?'Recent':'最近更新'}</h3>
@@ -2265,11 +2312,11 @@ app.get('*', async (c) => {
       <div class="article-header">
         <h1>${esc(p.title)}</h1>
         <div class="article-meta">
-          <span>${esc(fmtDate(p.date))}</span>
+          <span>${esc(publishedDate)}</span>
           <span class="sep">/</span>
           <a class="author-link" href="${base}about/">Kenneth Lau</a>
           <span class="sep">/</span>
-          <span>${lang==='en'?`${readMin} min read`:`约 ${readMin} 分钟`}</span>
+          <span>${lang==='en'?`${stats.readMin} min read`:`约 ${stats.readMin} 分钟`}</span>
         </div>
         ${factSummary}
       </div>
