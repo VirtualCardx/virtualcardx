@@ -321,6 +321,53 @@ test('sitemap 只含规范 URL', async () => {
   assert.ok(!xml.includes('/wp-content/'))
 })
 
+// 线上 posts 表里留着与 pages/categories 同路径的历史占位记录。
+// 两种来源各出一条，URL 就会在 sitemap 里出现两次。
+test('sitemap 同 URL 只出一条：文章占位记录不重复静态页', async () => {
+  const { env, ctx } = fresh({
+    posts: [
+      ...basePosts,
+      {
+        id: 401, lang: 'en', slug: 'about', title: 'About', excerpt: '', content: '<p>About</p>',
+        path: 'about', date: '2026-09-14', modified: '2026-09-14', status: 'publish',
+        featured_media: null, category_ids: '[]', tag_ids: '[]', translation_id: null, sticky: 0,
+      },
+    ],
+  })
+  const xml = await (await fetchPath(env, ctx, '/sitemap.xml')).text()
+  const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map(m => m[1])
+  assert.equal(new Set(locs).size, locs.length, 'sitemap 里不应有重复 loc')
+  assert.equal(locs.filter(l => l === 'https://virtualcardx.com/en/about/').length, 1, '同 URL 只能出一条')
+
+  // 静态页优先：它的条目里不能冒出占位文章的日期
+  const entry = xml.match(/<url><loc>https:\/\/virtualcardx\.com\/en\/about\/<\/loc>(?:<lastmod>[^<]*<\/lastmod>)?<\/url>/)
+  assert.ok(entry, '静态页的 en/about 必须还在')
+  assert.ok(!entry[0].includes('<lastmod>'), '静态页不该被占位文章的日期覆盖')
+
+  // 去重不能把真文章的 lastmod 一起丢掉
+  assert.ok(xml.includes('<loc>https://virtualcardx.com/virtual-credit-card-platform-review/</loc><lastmod>2026-09-19</lastmod>'),
+    '真实文章的 lastmod 要保持原值')
+})
+
+test('sitemap 同 URL 只出一条：文章占位记录不重复分类页', async () => {
+  const { env, ctx } = fresh({
+    posts: [
+      ...basePosts,
+      {
+        id: 402, lang: 'en', slug: 'cryptocurrency', title: 'Crypto', excerpt: '', content: '<p>Crypto</p>',
+        path: 'cryptocurrency', date: '2026-09-14', modified: '2026-09-14', status: 'publish',
+        featured_media: null, category_ids: '[]', tag_ids: '[]', translation_id: null, sticky: 0,
+      },
+    ],
+  })
+  const xml = await (await fetchPath(env, ctx, '/sitemap.xml')).text()
+  const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map(m => m[1])
+  assert.equal(new Set(locs).size, locs.length, 'sitemap 里不应有重复 loc')
+  assert.equal(locs.filter(l => l === 'https://virtualcardx.com/en/cryptocurrency/').length, 1, '同 URL 只能出一条')
+  // 中文分类页是另一条 URL，不能被一起去掉
+  assert.ok(locs.includes('https://virtualcardx.com/cryptocurrency/'), '中文分类页要保留')
+})
+
 test('robots.txt 指向 sitemap', async () => {
   const { env, ctx } = fresh()
   const res = await fetchPath(env, ctx, '/robots.txt')

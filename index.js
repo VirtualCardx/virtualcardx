@@ -1456,6 +1456,9 @@ app.get('/en/virutal-credit-card', (c) => c.redirect('/en/virtual-credit-card/',
 // /favicon.ico 与其他图标走 public/ 静态资源（Assets 在 Worker 之前响应），这里不再重定向。
 
 // sitemap：文章、真实静态页和数据库分类都从 D1 生成；旧路径不进入提交列表。
+// 各来源先生成结构化条目，最后一次性去重、转义、输出：
+// posts 里还留着与 pages/categories 同路径的历史占位记录，
+// 边拼字符串边追加的话，同一条 URL 会被提交两遍。
 app.get('/sitemap.xml', async (c) => {
   const posts = await queryAll(c,
     "SELECT path, lang, modified, date, translation_id FROM posts WHERE status = 'publish'", [])
@@ -1467,26 +1470,43 @@ app.get('/sitemap.xml', async (c) => {
     if (!/^\d{4}\/\d{2}\/\d{2}\//.test(p.path) && p.path.includes('/')) return false
     return !OLD_CAT_REDIRECTS.some(([from]) => postPath === from.slice(1) || postPath.startsWith(from.slice(1) + '/'))
   })
-  const postUrls = canonicalPosts.map(p => {
-    const loc = `${SITE}${p.lang==='en' ? '/en/' : '/'}${p.path.replace(/^\/+|\/+$/g, '')}/`
-    const lastmod = fmtDate(p.modified) || fmtDate(p.date)
-    return `<url><loc>${xmlEsc(encodeURI(loc))}</loc>${lastmod?`<lastmod>${lastmod}</lastmod>`:''}</url>`
-  }).join('')
+
+  // 以最终绝对 URL 为键。先写入的来源先占位：首页/静态页/分类页排在前，
+  // 同路径的文章占位记录后到就被丢掉，也不会把自己的日期盖到静态页上。
+  const entries = new Map()
+  const add = (loc, lastmod) => {
+    if (loc && !entries.has(loc)) entries.set(loc, { loc, lastmod: lastmod || '' })
+  }
+
+  add(`${SITE}/`)
+  add(`${SITE}/en/`)
+
   const pageRows = await queryAll(c, 'SELECT slug, lang FROM pages', [])
-  const pageUrls = pageRows
-    .filter(p => p.slug && !p.slug.includes('/'))
-    .map(p => `<url><loc>${xmlEsc(`${SITE}${p.lang==='en' ? '/en/' : '/'}${p.slug}/`)}</loc></url>`)
-    .join('')
+  for (const p of pageRows) {
+    if (!p.slug || p.slug.includes('/')) continue
+    add(`${SITE}${p.lang === 'en' ? '/en/' : '/'}${p.slug}/`)
+  }
+
   const catRows = await queryAll(c, 'SELECT id, slug, parent FROM categories', [])
   const byId = new Map(catRows.map(cat => [cat.id, cat]))
-  const catUrls = catRows.flatMap(cat => {
+  for (const cat of catRows) {
     const parent = cat.parent ? byId.get(cat.parent) : null
     const path = parent ? `${parent.slug}/${cat.slug}` : cat.slug
-    return ['zh', 'en'].map(lang => `<url><loc>${xmlEsc(`${SITE}${lang==='en' ? '/en/' : '/'}${path}/`)}</loc></url>`)
-  }).join('')
-  const staticUrls = ['/', '/en/']
-    .map(path => `<url><loc>${SITE}${path}</loc></url>`).join('')
-  return c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${staticUrls}${pageUrls}${catUrls}${postUrls}</urlset>`,
+    add(`${SITE}/${path}/`)
+    add(`${SITE}/en/${path}/`)
+  }
+
+  for (const p of canonicalPosts) {
+    add(`${SITE}${p.lang === 'en' ? '/en/' : '/'}${p.path.replace(/^\/+|\/+$/g, '')}/`,
+      fmtDate(p.modified) || fmtDate(p.date))
+  }
+
+  // 转义与 encodeURI 各做一次，顺序固定：先编码出合法 URL，再转义成 XML 文本。
+  const body = [...entries.values()].map(({ loc, lastmod }) =>
+    `<url><loc>${xmlEsc(encodeURI(loc))}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`
+  ).join('')
+
+  return c.body(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}</urlset>`,
     { headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' } })
 })
 
